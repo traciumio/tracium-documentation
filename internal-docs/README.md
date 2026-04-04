@@ -32,8 +32,10 @@ Recommended reading order:
 9. [Visualization Platform Overview](./03-visualization-platform/overview.md)
 10. [Repo Analyzer Overview](./04-repo-analyzer/overview.md)
 11. [Repo Analyzer Access And Ingestion](./04-repo-analyzer/access-and-ingestion.md)
-12. [Roadmap](./08-roadmap/roadmap.md)
-13. [Design Decisions](./09-design-decisions/decisions.md)
+12. [TraciumDB — Embedded Storage Engine](./02-cse-engine/traciumdb.md)
+13. [Roadmap](./08-roadmap/roadmap.md)
+14. [Production Roadmap v2](./08-roadmap/roadmap-v2-production.md)
+15. [Design Decisions](./09-design-decisions/decisions.md)
 
 What this docs set solves:
 

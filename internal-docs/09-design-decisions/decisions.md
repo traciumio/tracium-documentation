@@ -215,3 +215,49 @@ Implications:
 - traces must be segmentable for context window management
 - the system should support trace-to-natural-language explanation pipelines
 - SDK must expose AI-friendly endpoints (summarized traces, filtered views, semantic queries)
+
+## 15. TraciumDB: Embedded Storage Over External Databases
+
+Decision:
+
+- the engine uses its own embedded file-based storage engine (TraciumDB) instead of PostgreSQL, MongoDB, or any external database
+- all data is stored as human-readable text files (JSON, JSONL, TSV)
+- no separate database process is required to run the engine
+
+Why:
+
+- execution traces don't fit relational schemas — UEF is hierarchical (session → steps → frames → locals → values → heap)
+- step content queries ("find executions where x = -1") require native inverted indexes, not generic JSON path queries
+- fork trees require graph relationships, not relational JOINs
+- an embedded database eliminates operational burden (no postgres container, no connection pools, no migrations)
+- human-readable files enable direct inspection without special tools (`cat`, `grep`, VS Code all work)
+- one less dependency = simpler deployment, easier debugging, faster startup
+
+Implications:
+
+- traces are stored as one JSON file per session (immutable after write)
+- metadata, step content, and fork relationships have separate indexes loaded into memory
+- crash recovery uses atomic file writes + WAL with hash-chain integrity
+- Nerva retains its role as the ecosystem-wide trace store; TraciumDB is the engine's internal storage
+- for full architecture, see [TraciumDB documentation](../02-cse-engine/traciumdb.md)
+
+## 16. Engine Explorer: Embedded UI Over Separate Frontend
+
+Decision:
+
+- the engine ships with a built-in web UI (Engine Explorer) served from the same port as the API
+- no separate frontend process, no npm dev server required in production
+
+Why:
+
+- like Redis Insight, pgAdmin, or Kibana — start the server, get the interface
+- reduces the number of processes to manage from 2 (engine + UI) to 1
+- the UI is pre-built static files embedded in the Spring Boot JAR
+- every engine feature (28+ endpoints) is immediately explorable without curl or Postman
+
+Implications:
+
+- the Engine Explorer is a React + TypeScript SPA built with Vite
+- production builds are copied into `engine-service/src/main/resources/static/`
+- Spring Boot's `WebConfig` serves static files and falls back to `index.html` for client-side routing
+- the Engine Explorer is a developer/operations tool; Prism remains the product UI for end users
