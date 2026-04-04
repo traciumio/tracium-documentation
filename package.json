@@ -1,9 +1,0 @@
-{
-  "name": "@tracium/documentation",
-  "private": true,
-  "version": "0.1.0",
-  "scripts": {
-    "serve": "npx serve .",
-    "dev": "npx serve ."
-  }
-}
