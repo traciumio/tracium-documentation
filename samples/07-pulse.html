@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pulse - VS Code IDE Plugin</title>
+    <title>Pulse - Multi-Host IDE Plugin</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root { --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a2e; --border: #2a2a3e; --text: #e0e0e8; --text-dim: #8888a0; --accent: #ff7675; }
@@ -180,6 +180,227 @@
         .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
         .feature-card h4 { color: var(--accent); margin-bottom: 8px; }
         .feature-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; }
+        .host-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0; }
+        .host-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+        .host-card h4 { margin-bottom: 8px; }
+        .host-label { display: inline-block; margin-bottom: 12px; padding: 4px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; }
+        .host-current { background: rgba(255,118,117,0.2); color: var(--accent); }
+        .host-planned { background: rgba(78,201,176,0.16); color: #4ec9b0; }
+        .host-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; margin-bottom: 12px; }
+        .host-list { list-style: none; display: grid; gap: 8px; color: var(--text-dim); font-size: 0.88rem; }
+        .host-list li::before { content: "-"; color: var(--accent); margin-right: 8px; }
+
+        /* JetBrains mockup */
+        .jetbrains {
+            background: #1f2128;
+            border: 1px solid #353845;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+        }
+        .jb-titlebar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #2b2d36;
+            padding: 10px 16px;
+            color: #c7cad1;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #3a3d49;
+        }
+        .jb-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: #252831;
+            color: #aeb4c0;
+            font-size: 0.76rem;
+            border-bottom: 1px solid #343844;
+        }
+        .jb-chip {
+            padding: 4px 10px;
+            border: 1px solid #3d4250;
+            border-radius: 999px;
+            background: #2e323d;
+        }
+        .jb-chip.active {
+            border-color: rgba(255,118,117,0.45);
+            color: #fff;
+            background: rgba(255,118,117,0.14);
+        }
+        .jb-body {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            min-height: 560px;
+        }
+        .jb-project {
+            background: #23252d;
+            border-right: 1px solid #343844;
+            padding: 12px 10px;
+            color: #b5bbc8;
+            font-size: 0.8rem;
+        }
+        .jb-pane-title {
+            padding: 6px 10px 10px;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #81889b;
+        }
+        .jb-tree-item {
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 2px;
+            cursor: default;
+        }
+        .jb-tree-item.active {
+            background: rgba(255,118,117,0.12);
+            color: #fff;
+        }
+        .jb-main {
+            display: flex;
+            flex-direction: column;
+            background: #1f2128;
+        }
+        .jb-tabs {
+            display: flex;
+            align-items: center;
+            background: #272a33;
+            border-bottom: 1px solid #343844;
+        }
+        .jb-tab {
+            padding: 10px 16px;
+            font-size: 0.78rem;
+            color: #9ca3b4;
+            border-right: 1px solid #343844;
+        }
+        .jb-tab.active {
+            background: #1f2128;
+            color: #fff;
+            border-bottom: 2px solid var(--accent);
+        }
+        .jb-editor {
+            flex: 1;
+            padding: 10px 0;
+        }
+        .jb-line {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 18px;
+            font-size: 0.81rem;
+            line-height: 1.95;
+        }
+        .jb-line:hover { background: #292c35; }
+        .jb-line.active { background: rgba(255,118,117,0.09); }
+        .jb-line-no {
+            width: 30px;
+            color: #676d7b;
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .jb-gutter {
+            width: 18px;
+            color: var(--accent);
+            text-align: center;
+            flex-shrink: 0;
+            font-size: 0.74rem;
+        }
+        .jb-inline {
+            margin-left: 14px;
+            color: #4ec9b0;
+            font-size: 0.74rem;
+            opacity: 0.8;
+            font-style: italic;
+        }
+        .jb-toolwindow {
+            border-top: 1px solid #343844;
+            background: #23262f;
+        }
+        .jb-toolwindow-tabs {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 8px 12px 0;
+            background: #23262f;
+        }
+        .jb-tool-tab {
+            padding: 8px 12px;
+            font-size: 0.76rem;
+            color: #969daf;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        .jb-tool-tab.active {
+            background: #1f2128;
+            color: #fff;
+        }
+        .jb-toolwindow-body {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 16px;
+            padding: 16px;
+            background: #1f2128;
+        }
+        .jb-panel {
+            background: #262932;
+            border: 1px solid #353948;
+            border-radius: 10px;
+            padding: 14px;
+        }
+        .jb-panel h4 {
+            margin-bottom: 10px;
+            color: #fff;
+            font-size: 0.84rem;
+        }
+        .jb-event {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            color: #b8bfcc;
+            font-size: 0.78rem;
+        }
+        .jb-event.active {
+            background: rgba(255,118,117,0.12);
+            color: #fff;
+        }
+        .jb-kv {
+            display: grid;
+            gap: 8px;
+            color: #b8bfcc;
+            font-size: 0.78rem;
+        }
+        .jb-kv-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 6px 0;
+            border-bottom: 1px solid #323645;
+        }
+        .jb-kv-row:last-child {
+            border-bottom: none;
+        }
+        .jb-statusbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 12px;
+            background: #2b2d36;
+            border-top: 1px solid #343844;
+            color: #b8bfcc;
+            font-size: 0.74rem;
+        }
+        .jb-status-pill {
+            margin-left: auto;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: rgba(255,118,117,0.14);
+            color: #fff;
+        }
 
         /* Commands table */
         .cmd-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
@@ -189,7 +410,13 @@
         .cmd-name { color: var(--accent); font-family: monospace; }
         .cmd-key { padding: 2px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 0.8rem; }
 
-        @media (max-width: 1024px) { .vscode-body { flex-direction: column; height: auto; } .sidebar { width: 100%; } }
+        @media (max-width: 1024px) {
+            .vscode-body { flex-direction: column; height: auto; }
+            .sidebar { width: 100%; }
+            .jb-body { grid-template-columns: 1fr; }
+            .jb-project { border-right: none; border-bottom: 1px solid #343844; }
+            .jb-toolwindow-body { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -202,7 +429,7 @@
     <div class="hero">
         <div class="hero-badge">PLUGIN</div>
         <h1>Pulse</h1>
-        <p>VS Code extension that brings Tracium into your editor. Trace code execution, explore architecture, and navigate between runtime state and source code seamlessly.</p>
+        <p>Multi-host IDE integration for Tracium. VS Code is the first host, and JetBrains is the planned second host for Java-first runtime and repository workflows.</p>
     </div>
 
     <div class="content">
@@ -352,6 +579,139 @@
             </div>
         </div>
 
+        <h2>JetBrains Integration Preview</h2>
+        <div class="jetbrains">
+            <div class="jb-titlebar">
+                <span>Pulse Tool Window - IntelliJ IDEA Ultimate</span>
+                <span>Project: sorting-lab</span>
+            </div>
+            <div class="jb-toolbar">
+                <span class="jb-chip active">Run with Tracium</span>
+                <span class="jb-chip">Analyze with Tracium</span>
+                <span class="jb-chip">Attach to Session</span>
+                <span class="jb-chip">Open in Prism</span>
+            </div>
+            <div class="jb-body">
+                <div class="jb-project">
+                    <div class="jb-pane-title">Project</div>
+                    <div class="jb-tree-item">src</div>
+                    <div class="jb-tree-item">main</div>
+                    <div class="jb-tree-item">java</div>
+                    <div class="jb-tree-item active">Main.java</div>
+                    <div class="jb-tree-item">BubbleSort.java</div>
+                    <div class="jb-tree-item">SortService.java</div>
+                    <div class="jb-pane-title" style="margin-top: 18px;">Tracium</div>
+                    <div class="jb-tree-item active">Runtime Trace</div>
+                    <div class="jb-tree-item">Architecture View</div>
+                    <div class="jb-tree-item">Recent Sessions</div>
+                </div>
+                <div class="jb-main">
+                    <div class="jb-tabs">
+                        <div class="jb-tab active">Main.java</div>
+                        <div class="jb-tab">Trace Results</div>
+                    </div>
+                    <div class="jb-editor">
+                        <div class="jb-line">
+                            <span class="jb-line-no">1</span><span class="jb-gutter"></span>
+                            <span><span class="kw">class</span> <span class="tp">Main</span> {</span>
+                        </div>
+                        <div class="jb-line">
+                            <span class="jb-line-no">2</span><span class="jb-gutter"></span>
+                            <span>&nbsp;&nbsp;<span class="kw">public static void</span> <span class="fn">main</span>(<span class="tp">String</span>[] args) {</span>
+                        </div>
+                        <div class="jb-line">
+                            <span class="jb-line-no">3</span><span class="jb-gutter">1</span>
+                            <span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span>[] arr = {<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>};</span>
+                            <span class="jb-inline">// arr = [3, 1, 2]</span>
+                        </div>
+                        <div class="jb-line">
+                            <span class="jb-line-no">4</span><span class="jb-gutter">2</span>
+                            <span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; arr.length; i++) {</span>
+                            <span class="jb-inline">// i = 0</span>
+                        </div>
+                        <div class="jb-line">
+                            <span class="jb-line-no">5</span><span class="jb-gutter">3</span>
+                            <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> (<span class="kw">int</span> j = <span class="num">0</span>; j &lt; arr.length - <span class="num">1</span>; j++) {</span>
+                            <span class="jb-inline">// j = 0</span>
+                        </div>
+                        <div class="jb-line">
+                            <span class="jb-line-no">6</span><span class="jb-gutter">4</span>
+                            <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> (arr[j] > arr[j + <span class="num">1</span>]) {</span>
+                            <span class="jb-inline">// condition = true</span>
+                        </div>
+                        <div class="jb-line active">
+                            <span class="jb-line-no">7</span><span class="jb-gutter">&#9654;</span>
+                            <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span> tmp = arr[j];</span>
+                            <span class="jb-inline" style="color: var(--accent);">// tmp = 3</span>
+                        </div>
+                        <div class="jb-line">
+                            <span class="jb-line-no">8</span><span class="jb-gutter"></span>
+                            <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;arr[j] = arr[j + <span class="num">1</span>];</span>
+                        </div>
+                        <div class="jb-line">
+                            <span class="jb-line-no">9</span><span class="jb-gutter"></span>
+                            <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;arr[j + <span class="num">1</span>] = tmp;</span>
+                        </div>
+                    </div>
+                    <div class="jb-toolwindow">
+                        <div class="jb-toolwindow-tabs">
+                            <div class="jb-tool-tab active">Pulse Trace</div>
+                            <div class="jb-tool-tab">Variables</div>
+                            <div class="jb-tool-tab">Architecture</div>
+                        </div>
+                        <div class="jb-toolwindow-body">
+                            <div class="jb-panel">
+                                <h4>Trace Events</h4>
+                                <div class="jb-event active"><span>Step 5: VARIABLE_ASSIGNED</span><span>Main.java:7</span></div>
+                                <div class="jb-event"><span>Step 4: LINE_CHANGED</span><span>Main.java:6</span></div>
+                                <div class="jb-event"><span>Step 3: VARIABLE_ASSIGNED</span><span>Main.java:5</span></div>
+                                <div class="jb-event"><span>Step 2: VARIABLE_ASSIGNED</span><span>Main.java:4</span></div>
+                            </div>
+                            <div class="jb-panel">
+                                <h4>Frame Snapshot</h4>
+                                <div class="jb-kv">
+                                    <div class="jb-kv-row"><span>arr</span><span>int[3] {3, 1, 2}</span></div>
+                                    <div class="jb-kv-row"><span>i</span><span>0</span></div>
+                                    <div class="jb-kv-row"><span>j</span><span>0</span></div>
+                                    <div class="jb-kv-row"><span>tmp</span><span style="color: var(--accent);">3</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="jb-statusbar">
+                        <span>IntelliJ IDEA</span>
+                        <span>Java 21</span>
+                        <span>Pulse Runtime Session</span>
+                        <span class="jb-status-pill">Step 5/12</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>Host Rollout</h2>
+        <div class="host-grid">
+            <div class="host-card">
+                <div class="host-label host-current">Current Host</div>
+                <h4>VS Code</h4>
+                <p>Pulse starts in VS Code because it gives the fastest extension loop and a strong webview-based surface for trace playback and architecture exploration.</p>
+                <ul class="host-list">
+                    <li>TypeScript + VS Code Extension API</li>
+                    <li>Trace sidebar, inline values, and architecture webviews</li>
+                    <li>Fast feedback loop for shaping the Pulse workflow</li>
+                </ul>
+            </div>
+            <div class="host-card">
+                <div class="host-label host-planned">Planned Host</div>
+                <h4>JetBrains</h4>
+                <p>JetBrains is the next Pulse host, especially important for IntelliJ IDEA and Java-heavy teams using Tracium Engine and Atlas.</p>
+                <ul class="host-list">
+                    <li>Kotlin + IntelliJ Platform SDK</li>
+                    <li>Tool windows for trace and architecture workflows</li>
+                    <li>Project-aware navigation for Java-first Tracium use cases</li>
+                </ul>
+            </div>
+        </div>
+
         <h2>Commands</h2>
         <table class="cmd-table">
             <thead><tr><th>Command</th><th>Description</th><th>Shortcut</th></tr></thead>
@@ -376,12 +736,12 @@
                 <p>Full trace step list, call stack, and variable inspector in the VS Code sidebar. Click any step to jump to that point in execution.</p>
             </div>
             <div class="feature-card">
-                <h4>Architecture Webview</h4>
-                <p>Interactive dependency graph rendered in a VS Code webview panel. Click nodes to navigate directly to source files.</p>
+                <h4>Multi-Host Product</h4>
+                <p>Pulse is one IDE product across multiple hosts. VS Code is first, and JetBrains is planned next with the same Tracium workflows adapted to each IDE.</p>
             </div>
             <div class="feature-card">
-                <h4>Context Menu Integration</h4>
-                <p>Right-click any file or selection to trace it. Seamless integration with your existing VS Code workflow.</p>
+                <h4>JetBrains Tool Window Path</h4>
+                <p>JetBrains support will use tool windows and project-aware actions so Java tracing and repository analysis feel native inside IntelliJ IDEA.</p>
             </div>
         </div>
     </div>
