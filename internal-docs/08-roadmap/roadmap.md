@@ -1,5 +1,7 @@
 # Product Roadmap - Tracium Ecosystem
 
+> **Updated Roadmap:** See [roadmap-v2-production.md](roadmap-v2-production.md) for the production roadmap based on actual implementation assessment (2026-04-05). The engine is ~40-45% production-ready. See [tracium-engine/ASSESSMENT.md](../../../tracium-engine/ASSESSMENT.md) for the honest breakdown of what works vs what's thin.
+
 ## Roadmap Philosophy
 
 The goal is not to ship a throwaway MVP. The goal is not to build a visualizer.

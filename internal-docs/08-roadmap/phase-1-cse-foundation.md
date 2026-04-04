@@ -1,6 +1,6 @@
 # Phase 1: CSE Foundation + Trace Persistence (Tracium Engine + Nerva)
 
-**Status:** NEXT
+**Status:** 85% COMPLETE (see roadmap-v2-production.md Phase 1A/1B for remaining work)
 **Products Involved:** Tracium Engine, Nerva (trace store), Quanta
 **Tech Stack:** Java 21, JDI, Gradle, TypeScript
 **Depends On:** Phase 0
