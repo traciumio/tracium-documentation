@@ -23,7 +23,7 @@ Engine starts on `http://localhost:8080` with:
 
 ## 2. Open the UI
 
-Go to **http://localhost:8080** in your browser.
+Go to `http://localhost:8080` in your browser.
 
 You'll see the Engine Explorer with 8 tabs:
 Execute | Trace Viewer | Time Machine | AI Studio | Causality | Simulation | Diff Lab | TraciumDB
