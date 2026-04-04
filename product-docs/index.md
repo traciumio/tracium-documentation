@@ -1,0 +1,32 @@
+---
+layout: home
+
+hero:
+  name: Tracium
+  text: Execution Intelligence Infrastructure
+  tagline: Turn program execution into a queryable, replayable data model.
+  actions:
+    - theme: brand
+      text: What is Tracium?
+      link: /guide/what-is-tracium
+    - theme: alt
+      text: Getting Started
+      link: /guide/getting-started
+    - theme: alt
+      text: GitHub
+      link: https://github.com/traciumio
+
+features:
+  - title: Execution as Data
+    details: Every variable, every stack frame, every heap object — captured and persisted as structured, queryable data that outlives the session.
+  - title: Real JDI Capture
+    details: Not a simulator. Tracium attaches a real Java debugger (JDI) and records actual execution state at every step.
+  - title: Persistent Traces
+    details: Traces are stored as durable artifacts. Replay a bug from last week. Compare execution across code versions. Query historical traces.
+  - title: UEF Contract
+    details: Universal Execution Format — a language-agnostic, versioned schema that any tool can consume. The shared language of execution.
+  - title: Multi-Consumer
+    details: One trace, many consumers. Visualization (Prism), IDE (Pulse), SDK (Vector), AI, CI/CD — all read the same data.
+  - title: Production Ready
+    details: Sandbox mode for learning. Attach mode for production debugging. Configurable fidelity from full capture to minimal overhead.
+---
