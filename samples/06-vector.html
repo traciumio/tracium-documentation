@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vector - TypeScript SDK</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a2e; --border: #2a2a3e; --text: #e0e0e8; --text-dim: #8888a0; --accent: #74b9ff; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        .nav { padding: 16px 40px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+        .nav a { color: var(--text-dim); text-decoration: none; }
+        .nav a:hover { color: var(--accent); }
+        .hero { padding: 60px 40px; background: linear-gradient(135deg, #0a0a1a, #0a1428); border-bottom: 1px solid var(--border); }
+        .hero-badge { display: inline-block; padding: 4px 12px; background: rgba(116,185,255,0.2); color: var(--accent); border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; margin-bottom: 16px; }
+        .hero h1 { font-size: 2.5rem; margin-bottom: 12px; }
+        .hero p { color: var(--text-dim); font-size: 1.1rem; max-width: 700px; }
+        .content { max-width: 1000px; margin: 0 auto; padding: 40px; }
+        h2 { font-size: 1.4rem; margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        h3 { font-size: 1.05rem; margin: 24px 0 12px; color: var(--accent); }
+
+        .install-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .install-prompt { color: var(--accent); font-family: monospace; }
+        .install-cmd { font-family: 'Consolas', monospace; font-size: 1rem; }
+        .install-copy {
+            margin-left: auto;
+            padding: 6px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .code-example {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+        .code-header {
+            padding: 12px 20px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .code-lang { padding: 2px 8px; background: rgba(116,185,255,0.15); color: var(--accent); border-radius: 4px; font-size: 0.7rem; }
+        .code-body {
+            padding: 20px 24px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.84rem;
+            line-height: 1.8;
+            overflow-x: auto;
+        }
+        .kw { color: #c678dd; }
+        .fn { color: #61afef; }
+        .str { color: #98c379; }
+        .num { color: #d19a66; }
+        .cm { color: #5c6370; font-style: italic; }
+        .tp { color: #e5c07b; }
+        .op { color: #56b6c2; }
+        .prop { color: #e06c75; }
+
+        .api-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+        .api-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .api-card h4 { color: var(--accent); font-size: 0.95rem; margin-bottom: 8px; font-family: monospace; }
+        .api-card p { color: var(--text-dim); font-size: 0.85rem; line-height: 1.5; }
+        .api-method {
+            font-family: monospace;
+            font-size: 0.8rem;
+            padding: 4px 0;
+            color: var(--text-dim);
+        }
+        .api-method .method-name { color: var(--accent); }
+
+        .type-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 12px 0;
+        }
+        .type-name { font-family: monospace; color: var(--accent); font-size: 0.95rem; font-weight: 600; }
+        .type-fields { margin-top: 8px; }
+        .type-field { font-family: monospace; font-size: 0.82rem; padding: 3px 0; color: var(--text-dim); }
+        .type-field .field-name { color: var(--text); }
+        .type-field .field-type { color: #e5c07b; }
+
+        @media (max-width: 768px) { .api-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="index.html">&larr; All Projects</a>
+        <span style="color: var(--border)">|</span>
+        <span style="color: var(--accent); font-weight: 600;">Vector</span>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-badge">SDK</div>
+        <h1>Vector</h1>
+        <p>TypeScript SDK for the Tracium ecosystem. Typed client for runtime tracing, repository analysis, and programmatic access to code intelligence.</p>
+    </div>
+
+    <div class="content">
+        <h2>Installation</h2>
+        <div class="install-box">
+            <span class="install-prompt">$</span>
+            <span class="install-cmd">npm install @tracium/vector</span>
+            <button class="install-copy" onclick="navigator.clipboard.writeText('npm install @tracium/vector')">Copy</button>
+        </div>
+
+        <h2>Quick Start</h2>
+        <div class="code-example">
+            <div class="code-header"><span class="code-lang">TypeScript</span> Basic Runtime Trace</div>
+            <div class="code-body"><pre><span class="kw">import</span> { <span class="tp">TraciumClient</span> } <span class="kw">from</span> <span class="str">'@tracium/vector'</span>;
+
+<span class="cm">// Initialize client</span>
+<span class="kw">const</span> client = <span class="kw">new</span> <span class="tp">TraciumClient</span>({
+  <span class="prop">baseUrl</span>: <span class="str">'http://localhost:3000'</span>,
+  <span class="prop">apiKey</span>: <span class="str">'tk_your_api_key'</span>
+});
+
+<span class="cm">// Submit Java code for runtime tracing</span>
+<span class="kw">const</span> session = <span class="kw">await</span> client.<span class="fn">runtime</span>.<span class="fn">create</span>({
+  <span class="prop">language</span>: <span class="str">'java'</span>,
+  <span class="prop">entrypoint</span>: <span class="str">'Main.main'</span>,
+  <span class="prop">code</span>: <span class="str">`class Main {
+    public static void main(String[] args) {
+      int[] arr = {5, 3, 1};
+      for (int i = 0; i &lt; arr.length; i++) {
+        System.out.println(arr[i]);
+      }
+    }
+  }`</span>,
+  <span class="prop">limits</span>: { <span class="prop">timeoutMs</span>: <span class="num">5000</span>, <span class="prop">maxSteps</span>: <span class="num">500</span> }
+});
+
+<span class="cm">// Wait for execution to complete</span>
+<span class="kw">await</span> client.<span class="fn">runtime</span>.<span class="fn">waitForCompletion</span>(session.<span class="prop">id</span>);
+
+<span class="cm">// Get the full trace</span>
+<span class="kw">const</span> trace = <span class="kw">await</span> client.<span class="fn">runtime</span>.<span class="fn">trace</span>(session.<span class="prop">id</span>);
+
+console.<span class="fn">log</span>(<span class="str">`Total steps: ${</span>trace.<span class="prop">steps</span>.<span class="prop">length</span><span class="str">}`</span>);
+
+<span class="cm">// Navigate through each step</span>
+<span class="kw">for</span> (<span class="kw">const</span> step <span class="kw">of</span> trace.<span class="prop">steps</span>) {
+  console.<span class="fn">log</span>(
+    <span class="str">`Step ${</span>step.<span class="prop">step</span><span class="str">}: ${</span>step.<span class="prop">event</span><span class="str">} at line ${</span>step.<span class="prop">source</span>.<span class="prop">line</span><span class="str">}`</span>
+  );
+}</pre></div>
+        </div>
+
+        <div class="code-example">
+            <div class="code-header"><span class="code-lang">TypeScript</span> Repository Analysis</div>
+            <div class="code-body"><pre><span class="cm">// Analyze a local repository</span>
+<span class="kw">const</span> analysis = <span class="kw">await</span> client.<span class="fn">repo</span>.<span class="fn">create</span>({
+  <span class="prop">language</span>: <span class="str">'java'</span>,
+  <span class="prop">source</span>: {
+    <span class="prop">type</span>: <span class="str">'local'</span>,
+    <span class="prop">rootPath</span>: <span class="str">'/workspace/my-project'</span>
+  },
+  <span class="prop">analysisMode</span>: <span class="str">'architecture'</span>
+});
+
+<span class="kw">await</span> client.<span class="fn">repo</span>.<span class="fn">waitForCompletion</span>(analysis.<span class="prop">id</span>);
+
+<span class="cm">// Get the architecture graph</span>
+<span class="kw">const</span> graph = <span class="kw">await</span> client.<span class="fn">repo</span>.<span class="fn">graph</span>(analysis.<span class="prop">id</span>);
+
+<span class="cm">// Explore nodes and edges</span>
+<span class="kw">for</span> (<span class="kw">const</span> node <span class="kw">of</span> graph.<span class="prop">nodes</span>) {
+  console.<span class="fn">log</span>(<span class="str">`${</span>node.<span class="prop">type</span><span class="str">}: ${</span>node.<span class="prop">name</span><span class="str">}`</span>);
+}
+
+<span class="cm">// Find most-depended-on classes</span>
+<span class="kw">const</span> deps = graph.<span class="prop">edges</span>
+  .<span class="fn">filter</span>(e <span class="op">=&gt;</span> e.<span class="prop">type</span> === <span class="str">'DEPENDS_ON'</span>)
+  .<span class="fn">reduce</span>((acc, e) <span class="op">=&gt;</span> {
+    acc[e.<span class="prop">target</span>] = (acc[e.<span class="prop">target</span>] || <span class="num">0</span>) + <span class="num">1</span>;
+    <span class="kw">return</span> acc;
+  }, {});</pre></div>
+        </div>
+
+        <h2>SDK Modules</h2>
+        <div class="api-grid">
+            <div class="api-card">
+                <h4>client.runtime</h4>
+                <p>Runtime execution and trace access</p>
+                <div style="margin-top: 12px;">
+                    <div class="api-method"><span class="method-name">.create(request)</span> &rarr; Session</div>
+                    <div class="api-method"><span class="method-name">.get(id)</span> &rarr; SessionStatus</div>
+                    <div class="api-method"><span class="method-name">.trace(id)</span> &rarr; UEFTrace</div>
+                    <div class="api-method"><span class="method-name">.steps(id, opts)</span> &rarr; Step[]</div>
+                    <div class="api-method"><span class="method-name">.step(id, n)</span> &rarr; Step</div>
+                    <div class="api-method"><span class="method-name">.state(id, n)</span> &rarr; State</div>
+                    <div class="api-method"><span class="method-name">.waitForCompletion(id)</span> &rarr; void</div>
+                </div>
+            </div>
+            <div class="api-card">
+                <h4>client.repo</h4>
+                <p>Repository analysis and graph access</p>
+                <div style="margin-top: 12px;">
+                    <div class="api-method"><span class="method-name">.create(request)</span> &rarr; Session</div>
+                    <div class="api-method"><span class="method-name">.get(id)</span> &rarr; SessionStatus</div>
+                    <div class="api-method"><span class="method-name">.graph(id)</span> &rarr; UGFGraph</div>
+                    <div class="api-method"><span class="method-name">.symbols(id)</span> &rarr; Symbol[]</div>
+                    <div class="api-method"><span class="method-name">.waitForCompletion(id)</span> &rarr; void</div>
+                </div>
+            </div>
+            <div class="api-card">
+                <h4>client.github</h4>
+                <p>GitHub integration</p>
+                <div style="margin-top: 12px;">
+                    <div class="api-method"><span class="method-name">.connect()</span> &rarr; AuthURL</div>
+                    <div class="api-method"><span class="method-name">.repos()</span> &rarr; Repository[]</div>
+                    <div class="api-method"><span class="method-name">.disconnect()</span> &rarr; void</div>
+                </div>
+            </div>
+            <div class="api-card">
+                <h4>client (platform)</h4>
+                <p>Health and capability discovery</p>
+                <div style="margin-top: 12px;">
+                    <div class="api-method"><span class="method-name">.health()</span> &rarr; HealthStatus</div>
+                    <div class="api-method"><span class="method-name">.capabilities()</span> &rarr; Capabilities</div>
+                    <div class="api-method"><span class="method-name">.schemas.uef()</span> &rarr; JSONSchema</div>
+                    <div class="api-method"><span class="method-name">.schemas.ugf()</span> &rarr; JSONSchema</div>
+                </div>
+            </div>
+        </div>
+
+        <h2>Key Types</h2>
+        <div class="type-card">
+            <div class="type-name">RuntimeRequest</div>
+            <div class="type-fields">
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">language</span>: <span class="field-type">string</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">entrypoint</span>: <span class="field-type">string</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">code</span>: <span class="field-type">string</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">limits</span>: <span class="field-type">{ timeoutMs: number, maxSteps: number }</span></div>
+            </div>
+        </div>
+        <div class="type-card">
+            <div class="type-name">UEFStep</div>
+            <div class="type-fields">
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">step</span>: <span class="field-type">number</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">event</span>: <span class="field-type">EventType</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">source</span>: <span class="field-type">SourceAnchor</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">delta</span>: <span class="field-type">StateDelta</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">state</span>: <span class="field-type">MaterializedState</span></div>
+            </div>
+        </div>
+        <div class="type-card">
+            <div class="type-name">UGFNode</div>
+            <div class="type-fields">
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">id</span>: <span class="field-type">string</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">type</span>: <span class="field-type">'repository' | 'module' | 'package' | 'class' | 'method'</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">name</span>: <span class="field-type">string</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">source</span>: <span class="field-type">SourceAnchor</span></div>
+                <div class="type-field">&nbsp;&nbsp;<span class="field-name">metadata</span>: <span class="field-type">Record&lt;string, unknown&gt;</span></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

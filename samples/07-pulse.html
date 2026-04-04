@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulse - VS Code IDE Plugin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a2e; --border: #2a2a3e; --text: #e0e0e8; --text-dim: #8888a0; --accent: #ff7675; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        .nav { padding: 16px 40px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+        .nav a { color: var(--text-dim); text-decoration: none; }
+        .nav a:hover { color: var(--accent); }
+        .hero { padding: 60px 40px; background: linear-gradient(135deg, #0a0a1a, #1a0a0a); border-bottom: 1px solid var(--border); }
+        .hero-badge { display: inline-block; padding: 4px 12px; background: rgba(255,118,117,0.2); color: var(--accent); border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; margin-bottom: 16px; }
+        .hero h1 { font-size: 2.5rem; margin-bottom: 12px; }
+        .hero p { color: var(--text-dim); font-size: 1.1rem; max-width: 700px; }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        h2 { font-size: 1.4rem; margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+        /* VS Code mockup */
+        .vscode {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+        .vscode-titlebar {
+            background: #323233;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #999;
+        }
+        .titlebar-dots { display: flex; gap: 6px; }
+        .titlebar-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .dot-red { background: #ff5f56; }
+        .dot-yellow { background: #ffbd2e; }
+        .dot-green { background: #27c93f; }
+        .vscode-body { display: flex; height: 520px; }
+
+        /* Activity Bar */
+        .activity-bar {
+            width: 48px;
+            background: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 8px;
+            gap: 4px;
+        }
+        .activity-icon {
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            color: #888; font-size: 1.1rem; cursor: pointer;
+            border-left: 2px solid transparent;
+        }
+        .activity-icon.active { color: #fff; border-left-color: #fff; }
+        .activity-icon:hover { color: #fff; }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: #252526;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+        }
+        .sidebar-header {
+            padding: 10px 16px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+        }
+        .sidebar-section {
+            padding: 0 8px;
+        }
+        .sidebar-item {
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            color: #ccc;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sidebar-item:hover { background: #2a2d2e; }
+        .sidebar-item.active { background: #37373d; color: #fff; }
+        .sidebar-item .icon { font-size: 0.7rem; }
+        .trace-step { color: var(--accent); font-size: 0.7rem; margin-left: auto; }
+        .trace-var { font-size: 0.78rem; padding: 3px 12px 3px 28px; color: #888; }
+        .trace-var .val { color: #4ec9b0; }
+
+        /* Editor */
+        .editor { flex: 1; background: #1e1e1e; overflow-y: auto; }
+        .editor-tabs {
+            display: flex;
+            background: #252526;
+            border-bottom: 1px solid #333;
+        }
+        .editor-tab {
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            color: #888;
+            border-right: 1px solid #333;
+            cursor: pointer;
+        }
+        .editor-tab.active { background: #1e1e1e; color: #fff; border-bottom: 1px solid var(--accent); }
+        .editor-content { padding: 8px 0; }
+        .code-line {
+            display: flex;
+            font-size: 0.82rem;
+            line-height: 2;
+            padding: 0 16px;
+        }
+        .code-line:hover { background: #2a2d2e; }
+        .code-line.active-line { background: rgba(255,118,117,0.08); }
+        .gutter { color: #555; width: 40px; text-align: right; padding-right: 12px; flex-shrink: 0; }
+        .gutter-icon { color: var(--accent); font-size: 0.7rem; width: 20px; text-align: center; flex-shrink: 0; }
+        .code-text { flex: 1; }
+        .inline-value {
+            margin-left: 16px;
+            color: #4ec9b0;
+            font-size: 0.75rem;
+            opacity: 0.7;
+            font-style: italic;
+        }
+        .kw { color: #569cd6; }
+        .tp { color: #4ec9b0; }
+        .str { color: #ce9178; }
+        .num { color: #b5cea8; }
+        .fn { color: #dcdcaa; }
+        .cm { color: #6a9955; }
+
+        /* Status Bar */
+        .statusbar {
+            display: flex;
+            background: #007acc;
+            padding: 2px 12px;
+            font-size: 0.75rem;
+            color: #fff;
+            align-items: center;
+            gap: 16px;
+        }
+        .statusbar .tracium-status {
+            background: rgba(255,118,117,0.8);
+            padding: 2px 8px;
+            border-radius: 2px;
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Context menu */
+        .context-menu {
+            position: absolute;
+            background: #252526;
+            border: 1px solid #454545;
+            border-radius: 6px;
+            padding: 4px 0;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            font-size: 0.82rem;
+            z-index: 10;
+            min-width: 220px;
+        }
+        .ctx-item { padding: 6px 24px; color: #ccc; cursor: pointer; display: flex; justify-content: space-between; }
+        .ctx-item:hover { background: #094771; }
+        .ctx-divider { border-top: 1px solid #454545; margin: 4px 0; }
+        .ctx-shortcut { color: #888; font-size: 0.75rem; }
+        .ctx-tracium { color: var(--accent); }
+
+        /* Features */
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0; }
+        .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+        .feature-card h4 { color: var(--accent); margin-bottom: 8px; }
+        .feature-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; }
+
+        /* Commands table */
+        .cmd-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .cmd-table th { text-align: left; padding: 12px 16px; background: var(--surface2); color: var(--text-dim); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+        .cmd-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .cmd-table tr:hover { background: var(--surface); }
+        .cmd-name { color: var(--accent); font-family: monospace; }
+        .cmd-key { padding: 2px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 0.8rem; }
+
+        @media (max-width: 1024px) { .vscode-body { flex-direction: column; height: auto; } .sidebar { width: 100%; } }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="index.html">&larr; All Projects</a>
+        <span style="color: var(--border)">|</span>
+        <span style="color: var(--accent); font-weight: 600;">Pulse</span>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-badge">PLUGIN</div>
+        <h1>Pulse</h1>
+        <p>VS Code extension that brings Tracium into your editor. Trace code execution, explore architecture, and navigate between runtime state and source code seamlessly.</p>
+    </div>
+
+    <div class="content">
+        <h2>VS Code Integration Preview</h2>
+        <div class="vscode">
+            <div class="vscode-titlebar">
+                <div class="titlebar-dots">
+                    <div class="titlebar-dot dot-red"></div>
+                    <div class="titlebar-dot dot-yellow"></div>
+                    <div class="titlebar-dot dot-green"></div>
+                </div>
+                <span>Main.java - my-project - Visual Studio Code</span>
+            </div>
+            <div class="vscode-body">
+                <!-- Activity Bar -->
+                <div class="activity-bar">
+                    <div class="activity-icon">&#128462;</div>
+                    <div class="activity-icon">&#128269;</div>
+                    <div class="activity-icon">&#9878;</div>
+                    <div class="activity-icon active" title="Tracium Pulse">&#9889;</div>
+                    <div class="activity-icon">&#9881;</div>
+                </div>
+
+                <!-- Sidebar: Trace View -->
+                <div class="sidebar">
+                    <div class="sidebar-header">Tracium Trace</div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-item active">
+                            <span class="icon">&#9654;</span> Step 5: VARIABLE_ASSIGNED
+                            <span class="trace-step">line 7</span>
+                        </div>
+                        <div class="trace-var"><span class="val">tmp = 3</span></div>
+                        <div class="sidebar-item">
+                            <span class="icon">&#9654;</span> Step 4: LINE_CHANGED
+                            <span class="trace-step">line 6</span>
+                        </div>
+                        <div class="sidebar-item">
+                            <span class="icon">&#9654;</span> Step 3: VARIABLE_ASSIGNED
+                            <span class="trace-step">line 5</span>
+                        </div>
+                        <div class="trace-var"><span class="val">j = 0</span></div>
+                        <div class="sidebar-item">
+                            <span class="icon">&#9654;</span> Step 2: VARIABLE_ASSIGNED
+                            <span class="trace-step">line 4</span>
+                        </div>
+                        <div class="trace-var"><span class="val">i = 0</span></div>
+                        <div class="sidebar-item">
+                            <span class="icon">&#9654;</span> Step 1: OBJECT_ALLOCATED
+                            <span class="trace-step">line 3</span>
+                        </div>
+                    </div>
+                    <div class="sidebar-header" style="margin-top: 16px;">Call Stack</div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-item active">
+                            <span class="icon">&#9654;</span> main() - Main.java:7
+                        </div>
+                    </div>
+                    <div class="sidebar-header" style="margin-top: 16px;">Variables</div>
+                    <div class="sidebar-section">
+                        <div class="trace-var"><span class="val">arr = int[3] {3, 1, 2}</span></div>
+                        <div class="trace-var"><span class="val">i = 0</span></div>
+                        <div class="trace-var"><span class="val">j = 0</span></div>
+                        <div class="trace-var" style="color: var(--accent);"><span class="val">tmp = 3 (new)</span></div>
+                    </div>
+                </div>
+
+                <!-- Editor -->
+                <div class="editor">
+                    <div class="editor-tabs">
+                        <div class="editor-tab active">Main.java</div>
+                        <div class="editor-tab">BubbleSort.java</div>
+                    </div>
+                    <div class="editor-content">
+                        <div class="code-line">
+                            <span class="gutter">1</span><span class="gutter-icon"></span>
+                            <span class="code-text"><span class="kw">class</span> <span class="tp">Main</span> {</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">2</span><span class="gutter-icon"></span>
+                            <span class="code-text">&nbsp;&nbsp;<span class="kw">public static void</span> <span class="fn">main</span>(<span class="tp">String</span>[] args) {</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">3</span><span class="gutter-icon" style="color: #888;">1</span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span>[] arr = {<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>};</span>
+                            <span class="inline-value">// arr = [3, 1, 2]</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">4</span><span class="gutter-icon" style="color: #888;">2</span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; arr.length; i++) {</span>
+                            <span class="inline-value">// i = 0</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">5</span><span class="gutter-icon" style="color: #888;">3</span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> (<span class="kw">int</span> j = <span class="num">0</span>; j &lt; arr.length-<span class="num">1</span>; j++) {</span>
+                            <span class="inline-value">// j = 0</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">6</span><span class="gutter-icon" style="color: #888;">4</span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> (arr[j] > arr[j+<span class="num">1</span>]) {</span>
+                            <span class="inline-value">// 3 > 1 = true</span>
+                        </div>
+                        <div class="code-line active-line">
+                            <span class="gutter">7</span><span class="gutter-icon" style="color: var(--accent);">&#x25B6;</span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span> tmp = arr[j];</span>
+                            <span class="inline-value" style="color: var(--accent);">// tmp = 3</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">8</span><span class="gutter-icon"></span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;arr[j] = arr[j+<span class="num">1</span>];</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">9</span><span class="gutter-icon"></span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;arr[j+<span class="num">1</span>] = tmp;</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">10</span><span class="gutter-icon"></span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">11</span><span class="gutter-icon"></span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">12</span><span class="gutter-icon"></span>
+                            <span class="code-text">&nbsp;&nbsp;&nbsp;&nbsp;}</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">13</span><span class="gutter-icon"></span>
+                            <span class="code-text">&nbsp;&nbsp;}</span>
+                        </div>
+                        <div class="code-line">
+                            <span class="gutter">14</span><span class="gutter-icon"></span>
+                            <span class="code-text">}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="statusbar">
+                <span>main</span>
+                <span>Java</span>
+                <span>UTF-8</span>
+                <div class="tracium-status">
+                    &#9889; Pulse &mdash; Step 5/12 &nbsp; [&laquo;] [&raquo;]
+                </div>
+            </div>
+        </div>
+
+        <h2>Commands</h2>
+        <table class="cmd-table">
+            <thead><tr><th>Command</th><th>Description</th><th>Shortcut</th></tr></thead>
+            <tbody>
+                <tr><td class="cmd-name">tracium.traceFile</td><td>Trace the current file</td><td><span class="cmd-key">Ctrl+Shift+T</span></td></tr>
+                <tr><td class="cmd-name">tracium.traceSelection</td><td>Trace selected code</td><td><span class="cmd-key">Ctrl+Shift+R</span></td></tr>
+                <tr><td class="cmd-name">tracium.analyzeProject</td><td>Analyze workspace architecture</td><td><span class="cmd-key">Ctrl+Shift+A</span></td></tr>
+                <tr><td class="cmd-name">tracium.stepForward</td><td>Next execution step</td><td><span class="cmd-key">Ctrl+Right</span></td></tr>
+                <tr><td class="cmd-name">tracium.stepBackward</td><td>Previous execution step</td><td><span class="cmd-key">Ctrl+Left</span></td></tr>
+                <tr><td class="cmd-name">tracium.openInPrism</td><td>Open full trace in Prism</td><td><span class="cmd-key">Ctrl+Shift+P</span></td></tr>
+            </tbody>
+        </table>
+
+        <h2>Key Features</h2>
+        <div class="features">
+            <div class="feature-card">
+                <h4>Inline Value Decorations</h4>
+                <p>See variable values right next to the code as you step through execution. Values update in real-time as you navigate the trace.</p>
+            </div>
+            <div class="feature-card">
+                <h4>Trace Sidebar</h4>
+                <p>Full trace step list, call stack, and variable inspector in the VS Code sidebar. Click any step to jump to that point in execution.</p>
+            </div>
+            <div class="feature-card">
+                <h4>Architecture Webview</h4>
+                <p>Interactive dependency graph rendered in a VS Code webview panel. Click nodes to navigate directly to source files.</p>
+            </div>
+            <div class="feature-card">
+                <h4>Context Menu Integration</h4>
+                <p>Right-click any file or selection to trace it. Seamless integration with your existing VS Code workflow.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

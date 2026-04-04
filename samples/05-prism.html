@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prism - Visualization Platform</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a2e; --border: #2a2a3e; --text: #e0e0e8; --text-dim: #8888a0; --accent: #55efc4; --accent2: #6c5ce7; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        .nav { padding: 16px 40px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+        .nav a { color: var(--text-dim); text-decoration: none; }
+        .nav a:hover { color: var(--accent); }
+        .hero { padding: 60px 40px; background: linear-gradient(135deg, #0a0a1a, #0a1a14); border-bottom: 1px solid var(--border); }
+        .hero-badge { display: inline-block; padding: 4px 12px; background: rgba(85,239,196,0.2); color: var(--accent); border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; margin-bottom: 16px; }
+        .hero h1 { font-size: 2.5rem; margin-bottom: 12px; }
+        .hero p { color: var(--text-dim); font-size: 1.1rem; max-width: 700px; }
+        .content { max-width: 1400px; margin: 0 auto; padding: 40px; }
+        h2 { font-size: 1.4rem; margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+        /* Full workspace mockup */
+        .workspace {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .ws-toolbar {
+            padding: 10px 20px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .ws-logo { font-weight: 700; color: var(--accent); font-size: 0.95rem; }
+        .ws-tabs { display: flex; gap: 4px; margin-left: 20px; }
+        .ws-tab { padding: 6px 16px; border-radius: 6px; font-size: 0.8rem; color: var(--text-dim); cursor: pointer; }
+        .ws-tab.active { background: var(--surface); color: var(--text); }
+        .ws-tab:hover { color: var(--text); }
+        .ws-spacer { flex: 1; }
+        .ws-mode { padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; color: var(--accent); }
+
+        .ws-body { display: grid; grid-template-columns: 1fr 300px 320px; height: 500px; }
+        .ws-panel { border-right: 1px solid var(--border); padding: 16px; overflow-y: auto; }
+        .ws-panel:last-child { border-right: none; }
+        .panel-title { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; font-weight: 600; }
+
+        /* Source panel */
+        .source-line { font-family: 'Consolas', monospace; font-size: 0.82rem; line-height: 2; padding: 0 8px; display: flex; }
+        .source-line:hover { background: var(--surface2); }
+        .source-line.active { background: rgba(85,239,196,0.08); border-left: 3px solid var(--accent); }
+        .line-gutter { color: #444; width: 30px; flex-shrink: 0; text-align: right; margin-right: 12px; }
+        .kw { color: #c678dd; }
+        .tp { color: #e5c07b; }
+        .str { color: #98c379; }
+        .num { color: #d19a66; }
+        .fn { color: #61afef; }
+        .step-marker { color: var(--accent); font-size: 0.7rem; margin-left: auto; }
+
+        /* Stack panel */
+        .frame {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .frame.active { border-color: var(--accent); }
+        .frame-header { padding: 10px 14px; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .frame-header .badge { padding: 2px 6px; background: rgba(85,239,196,0.15); color: var(--accent); border-radius: 3px; font-size: 0.65rem; }
+        .frame-vars { padding: 8px 14px; border-top: 1px solid var(--border); }
+        .var-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.82rem; font-family: monospace; }
+        .var-name { color: var(--text); }
+        .var-value { color: #56b6c2; }
+        .var-changed { color: var(--accent); font-weight: 600; }
+        .var-ref { color: #fd79a8; cursor: pointer; text-decoration: underline; }
+
+        /* Heap panel */
+        .heap-obj {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .heap-obj.highlighted { border-color: var(--accent); }
+        .heap-header { padding: 10px 14px; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; }
+        .heap-id { color: #fd79a8; font-family: monospace; }
+        .heap-type { color: var(--text-dim); }
+        .heap-body { padding: 8px 14px; border-top: 1px solid var(--border); }
+        .heap-arr { display: flex; gap: 2px; }
+        .arr-cell {
+            padding: 6px 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.82rem;
+            text-align: center;
+            min-width: 40px;
+        }
+        .arr-cell.changed { border-color: var(--accent); color: var(--accent); }
+        .arr-idx { font-size: 0.65rem; color: #555; text-align: center; margin-top: 2px; }
+        .obj-field { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.82rem; font-family: monospace; }
+
+        /* Timeline */
+        .timeline {
+            padding: 12px 20px;
+            background: var(--surface2);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .tl-btn {
+            padding: 6px 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .tl-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .tl-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; position: relative; cursor: pointer; }
+        .tl-fill { height: 100%; background: var(--accent); border-radius: 3px; width: 35%; transition: width 0.2s; }
+        .tl-thumb { position: absolute; top: -5px; left: 35%; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; transform: translateX(-50%); }
+        .tl-info { font-size: 0.8rem; color: var(--text-dim); min-width: 100px; text-align: right; }
+        .tl-event { color: var(--accent); font-family: monospace; font-size: 0.75rem; }
+
+        /* Output */
+        .output {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            font-family: monospace;
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .output-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        @media (max-width: 1024px) { .ws-body { grid-template-columns: 1fr; height: auto; } }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="index.html">&larr; All Projects</a>
+        <span style="color: var(--border)">|</span>
+        <span style="color: var(--accent); font-weight: 600;">Prism</span>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-badge">APP</div>
+        <h1>Prism</h1>
+        <p>The visualization platform. Renders runtime traces as interactive step-by-step playbacks and repository structures as navigable architecture graphs.</p>
+    </div>
+
+    <div class="content">
+        <h2>Runtime Workspace Preview</h2>
+        <div class="workspace">
+            <div class="ws-toolbar">
+                <span class="ws-logo">Prism</span>
+                <div class="ws-tabs">
+                    <div class="ws-tab active">Runtime</div>
+                    <div class="ws-tab">Architecture</div>
+                </div>
+                <div class="ws-spacer"></div>
+                <span class="ws-mode">Debug Mode</span>
+            </div>
+
+            <div class="ws-body">
+                <!-- Source Panel -->
+                <div class="ws-panel">
+                    <div class="panel-title">Source - BubbleSort.java</div>
+                    <div class="source-line"><span class="line-gutter">1</span><span class="kw">class</span> <span class="tp">BubbleSort</span> {</div>
+                    <div class="source-line"><span class="line-gutter">2</span>&nbsp;&nbsp;<span class="kw">static void</span> <span class="fn">sort</span>(<span class="kw">int</span>[] arr) {</div>
+                    <div class="source-line"><span class="line-gutter">3</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span> n = arr.length;</div>
+                    <div class="source-line"><span class="line-gutter">4</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; n; i++) {</div>
+                    <div class="source-line active"><span class="line-gutter">5</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> (<span class="kw">int</span> j = <span class="num">0</span>; j &lt; n-<span class="num">1</span>; j++) {<span class="step-marker">STEP 7</span></div>
+                    <div class="source-line"><span class="line-gutter">6</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> (arr[j] > arr[j+<span class="num">1</span>]) {</div>
+                    <div class="source-line"><span class="line-gutter">7</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span> tmp = arr[j];</div>
+                    <div class="source-line"><span class="line-gutter">8</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;arr[j] = arr[j+<span class="num">1</span>];</div>
+                    <div class="source-line"><span class="line-gutter">9</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;arr[j+<span class="num">1</span>] = tmp;</div>
+                    <div class="source-line"><span class="line-gutter">10</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</div>
+                    <div class="source-line"><span class="line-gutter">11</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}</div>
+                    <div class="source-line"><span class="line-gutter">12</span>&nbsp;&nbsp;&nbsp;&nbsp;}</div>
+                    <div class="source-line"><span class="line-gutter">13</span>&nbsp;&nbsp;}</div>
+                    <div class="source-line"><span class="line-gutter">14</span>&nbsp;</div>
+                    <div class="source-line"><span class="line-gutter">15</span>&nbsp;&nbsp;<span class="kw">public static void</span> <span class="fn">main</span>(String[] args) {</div>
+                    <div class="source-line"><span class="line-gutter">16</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span>[] data = {<span class="num">5</span>, <span class="num">3</span>, <span class="num">8</span>, <span class="num">1</span>, <span class="num">2</span>};</div>
+                    <div class="source-line"><span class="line-gutter">17</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">sort</span>(data);</div>
+                    <div class="source-line"><span class="line-gutter">18</span>&nbsp;&nbsp;}</div>
+                    <div class="source-line"><span class="line-gutter">19</span>}</div>
+                </div>
+
+                <!-- Stack Panel -->
+                <div class="ws-panel">
+                    <div class="panel-title">Call Stack</div>
+                    <div class="frame active">
+                        <div class="frame-header">sort() <span class="badge">ACTIVE</span></div>
+                        <div class="frame-vars">
+                            <div class="var-row"><span class="var-name">arr</span><span class="var-ref">-&gt; obj_1</span></div>
+                            <div class="var-row"><span class="var-name">n</span><span class="var-value">5</span></div>
+                            <div class="var-row"><span class="var-name">i</span><span class="var-changed">0</span></div>
+                            <div class="var-row"><span class="var-name">j</span><span class="var-changed">1</span></div>
+                        </div>
+                    </div>
+                    <div class="frame">
+                        <div class="frame-header">main()</div>
+                        <div class="frame-vars">
+                            <div class="var-row"><span class="var-name">data</span><span class="var-ref">-&gt; obj_1</span></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <div class="panel-title">Aliasing</div>
+                        <div style="font-size: 0.82rem; color: var(--text-dim); font-family: monospace; padding: 8px; background: var(--surface2); border-radius: 6px;">
+                            sort.arr == main.data &rarr; obj_1
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Heap Panel -->
+                <div class="ws-panel">
+                    <div class="panel-title">Heap Objects</div>
+                    <div class="heap-obj highlighted">
+                        <div class="heap-header">
+                            <span class="heap-id">obj_1</span>
+                            <span class="heap-type">int[5]</span>
+                        </div>
+                        <div class="heap-body">
+                            <div class="heap-arr">
+                                <div>
+                                    <div class="arr-cell changed">3</div>
+                                    <div class="arr-idx">[0]</div>
+                                </div>
+                                <div>
+                                    <div class="arr-cell changed">5</div>
+                                    <div class="arr-idx">[1]</div>
+                                </div>
+                                <div>
+                                    <div class="arr-cell">8</div>
+                                    <div class="arr-idx">[2]</div>
+                                </div>
+                                <div>
+                                    <div class="arr-cell">1</div>
+                                    <div class="arr-idx">[3]</div>
+                                </div>
+                                <div>
+                                    <div class="arr-cell">2</div>
+                                    <div class="arr-idx">[4]</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 16px; padding: 12px; background: var(--surface2); border-radius: 8px; font-size: 0.8rem;">
+                        <div style="color: var(--accent); margin-bottom: 6px;">Delta at Step 7</div>
+                        <div style="color: var(--text-dim); font-family: monospace; font-size: 0.78rem;">
+                            obj_1[0]: 5 &rarr; 3<br>
+                            obj_1[1]: 3 &rarr; 5<br>
+                            <span style="color: #636e72;">// Swap completed</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div class="timeline">
+                <button class="tl-btn">|&laquo;</button>
+                <button class="tl-btn">&laquo;</button>
+                <button class="tl-btn">&#9654;</button>
+                <button class="tl-btn">&raquo;</button>
+                <button class="tl-btn">&raquo;|</button>
+                <div class="tl-bar">
+                    <div class="tl-fill"></div>
+                    <div class="tl-thumb"></div>
+                </div>
+                <div class="tl-info">
+                    <div>Step 7 / 20</div>
+                    <div class="tl-event">VARIABLE_ASSIGNED</div>
+                </div>
+            </div>
+
+            <!-- Output -->
+            <div class="output">
+                <span class="output-label">stdout:</span>
+                <span>(no output yet)</span>
+            </div>
+        </div>
+
+        <h2>Key Features</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0;">
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+                <h4 style="color: var(--accent); margin-bottom: 8px;">Step-by-Step Playback</h4>
+                <p style="color: var(--text-dim); font-size: 0.9rem; line-height: 1.6;">Navigate forward and backward through execution. Every step shows the exact state of stack, heap, and variables.</p>
+            </div>
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+                <h4 style="color: var(--accent); margin-bottom: 8px;">Truth-First State</h4>
+                <p style="color: var(--text-dim); font-size: 0.9rem; line-height: 1.6;">Object identity, aliasing, and null values are shown exactly as the JVM sees them. No simplification that hides the truth.</p>
+            </div>
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+                <h4 style="color: var(--accent); margin-bottom: 8px;">Delta Highlighting</h4>
+                <p style="color: var(--text-dim); font-size: 0.9rem; line-height: 1.6;">Every step highlights what changed. New values, updated array elements, and modified fields are instantly visible.</p>
+            </div>
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+                <h4 style="color: var(--accent); margin-bottom: 8px;">Dual Mode</h4>
+                <p style="color: var(--text-dim); font-size: 0.9rem; line-height: 1.6;">Learning mode for clarity and minimal cognitive overhead. Debug mode for full state accuracy and execution truth.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

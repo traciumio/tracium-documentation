@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracium Ecosystem - All Projects Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a2e;
+            --border: #2a2a3e;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --accent: #6c5ce7;
+            --accent2: #00cec9;
+            --accent3: #fd79a8;
+            --accent4: #fdcb6e;
+            --accent5: #55efc4;
+            --accent6: #74b9ff;
+            --accent7: #ff7675;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1035 50%, #0a1628 100%);
+            padding: 60px 40px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at 30% 50%, rgba(108,92,231,0.15), transparent 60%),
+                        radial-gradient(ellipse at 70% 50%, rgba(0,206,201,0.1), transparent 60%);
+        }
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            position: relative;
+            background: linear-gradient(135deg, #fff, #6c5ce7, #00cec9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p {
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            margin-top: 12px;
+            position: relative;
+        }
+        .tagline {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 24px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            color: var(--accent2);
+            position: relative;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 24px;
+            padding: 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            position: relative;
+            overflow: hidden;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            box-shadow: 0 8px 32px rgba(108,92,231,0.2);
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+        .card:nth-child(1)::before { background: var(--accent); }
+        .card:nth-child(2)::before { background: var(--accent2); }
+        .card:nth-child(3)::before { background: var(--accent3); }
+        .card:nth-child(4)::before { background: var(--accent4); }
+        .card:nth-child(5)::before { background: var(--accent5); }
+        .card:nth-child(6)::before { background: var(--accent6); }
+        .card:nth-child(7)::before { background: var(--accent7); }
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .card:nth-child(1) .card-icon { background: rgba(108,92,231,0.2); color: var(--accent); }
+        .card:nth-child(2) .card-icon { background: rgba(0,206,201,0.2); color: var(--accent2); }
+        .card:nth-child(3) .card-icon { background: rgba(253,121,168,0.2); color: var(--accent3); }
+        .card:nth-child(4) .card-icon { background: rgba(253,203,110,0.2); color: var(--accent4); }
+        .card:nth-child(5) .card-icon { background: rgba(85,239,196,0.2); color: var(--accent5); }
+        .card:nth-child(6) .card-icon { background: rgba(116,185,255,0.2); color: var(--accent6); }
+        .card:nth-child(7) .card-icon { background: rgba(255,118,117,0.2); color: var(--accent7); }
+        .card-title { font-size: 1.3rem; font-weight: 600; }
+        .card-codename { font-size: 0.85rem; color: var(--text-dim); }
+        .card-desc {
+            color: var(--text-dim);
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .card-tech {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .tag {
+            padding: 4px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        .card-type {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .type-spec { background: rgba(108,92,231,0.2); color: var(--accent); }
+        .type-service { background: rgba(0,206,201,0.2); color: var(--accent2); }
+        .type-app { background: rgba(85,239,196,0.2); color: var(--accent5); }
+        .type-sdk { background: rgba(116,185,255,0.2); color: var(--accent6); }
+        .type-plugin { background: rgba(255,118,117,0.2); color: var(--accent7); }
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border);
+        }
+        .architecture {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+        .architecture h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.5rem;
+        }
+        .arch-diagram {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            white-space: pre;
+            color: var(--text-dim);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TRACIUM</h1>
+        <p>Code Intelligence Ecosystem &mdash; Tracium</p>
+        <div class="tagline">Code &rarr; State &rarr; Graph &rarr; Visual Intelligence</div>
+    </div>
+
+    <div class="grid">
+        <a href="01-quanta.html" class="card">
+            <span class="card-type type-spec">SPEC</span>
+            <div class="card-header">
+                <div class="card-icon">Q</div>
+                <div>
+                    <div class="card-title">Quanta</div>
+                    <div class="card-codename">Shared Specs &amp; Contracts</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                Canonical schemas and contracts that all products share. Defines UEF (Universal Execution Format) and UGF (Unified Graph Format) &mdash; the common language of the ecosystem.
+            </div>
+            <div class="card-tech">
+                <span class="tag">JSON Schema</span>
+                <span class="tag">UEF</span>
+                <span class="tag">UGF</span>
+                <span class="tag">Markdown</span>
+            </div>
+        </a>
+
+        <a href="02-tracium-engine.html" class="card">
+            <span class="card-type type-service">SERVICE</span>
+            <div class="card-header">
+                <div class="card-icon">T</div>
+                <div>
+                    <div class="card-title">Tracium Engine</div>
+                    <div class="card-codename">CSE &mdash; Code State Engine</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                Headless runtime execution engine. Executes code, captures state through JDI, normalizes into timeline, and emits UEF. The core intelligence that powers runtime understanding.
+            </div>
+            <div class="card-tech">
+                <span class="tag">Java 21</span>
+                <span class="tag">JDI</span>
+                <span class="tag">Gradle</span>
+                <span class="tag">Headless</span>
+            </div>
+        </a>
+
+        <a href="03-atlas.html" class="card">
+            <span class="card-type type-service">SERVICE</span>
+            <div class="card-header">
+                <div class="card-icon">A</div>
+                <div>
+                    <div class="card-title">Atlas</div>
+                    <div class="card-codename">Repository Analyzer</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                Static code intelligence engine. Ingests repositories, builds symbol tables, resolves dependencies, constructs call graphs, and emits UGF for architecture visualization.
+            </div>
+            <div class="card-tech">
+                <span class="tag">Java 21</span>
+                <span class="tag">Gradle</span>
+                <span class="tag">AST Parsing</span>
+                <span class="tag">Graph Analysis</span>
+            </div>
+        </a>
+
+        <a href="04-nerva.html" class="card">
+            <span class="card-type type-service">SERVICE</span>
+            <div class="card-header">
+                <div class="card-icon">N</div>
+                <div>
+                    <div class="card-title">Nerva</div>
+                    <div class="card-codename">Orchestration Layer</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                Platform backbone. Manages sessions, authentication, GitHub integration, and routes requests between clients and backend engines. The API gateway for the ecosystem.
+            </div>
+            <div class="card-tech">
+                <span class="tag">TypeScript</span>
+                <span class="tag">REST API</span>
+                <span class="tag">OAuth</span>
+                <span class="tag">Sessions</span>
+            </div>
+        </a>
+
+        <a href="05-prism.html" class="card">
+            <span class="card-type type-app">APP</span>
+            <div class="card-header">
+                <div class="card-icon">P</div>
+                <div>
+                    <div class="card-title">Prism</div>
+                    <div class="card-codename">Visualization Platform</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                The user-facing product. Renders runtime traces as interactive step-by-step playbacks and repository structures as navigable architecture graphs. Where intelligence becomes visual.
+            </div>
+            <div class="card-tech">
+                <span class="tag">React</span>
+                <span class="tag">TypeScript</span>
+                <span class="tag">Vite</span>
+                <span class="tag">Interactive UI</span>
+            </div>
+        </a>
+
+        <a href="06-vector.html" class="card">
+            <span class="card-type type-sdk">SDK</span>
+            <div class="card-header">
+                <div class="card-icon">V</div>
+                <div>
+                    <div class="card-title">Vector</div>
+                    <div class="card-codename">Client SDK</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                Developer-facing TypeScript SDK. Typed client for runtime tracing, repository analysis, and GitHub integration. Enables external tools to build on the Tracium ecosystem.
+            </div>
+            <div class="card-tech">
+                <span class="tag">TypeScript</span>
+                <span class="tag">npm</span>
+                <span class="tag">ESM + CJS</span>
+                <span class="tag">Typed Client</span>
+            </div>
+        </a>
+
+        <a href="07-pulse.html" class="card">
+            <span class="card-type type-plugin">PLUGIN</span>
+            <div class="card-header">
+                <div class="card-icon">P</div>
+                <div>
+                    <div class="card-title">Pulse</div>
+                    <div class="card-codename">IDE Plugin</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                VS Code extension that brings Tracium into the editor. Trace code, explore architecture, and navigate between execution and source without leaving your IDE.
+            </div>
+            <div class="card-tech">
+                <span class="tag">VS Code API</span>
+                <span class="tag">TypeScript</span>
+                <span class="tag">Webview</span>
+                <span class="tag">Extension</span>
+            </div>
+        </a>
+    </div>
+
+    <div class="architecture">
+        <h2>Ecosystem Architecture</h2>
+        <div class="arch-diagram">
+    Developer
+       |
+   +---+---+-------------------+
+   |       |                   |
+[Prism]  [Pulse]           [Vector SDK]
+   |       |                   |
+   +---+---+-------------------+
+       |
+    [Nerva] &mdash; Orchestration, Auth, Sessions
+       |
+   +---+---+
+   |       |
+[Tracium  [Atlas]
+ Engine]
+   |       |
+  UEF     UGF
+   |       |
+   +---+---+
+       |
+   [Quanta] &mdash; Shared Schemas &amp; Contracts
+        </div>
+    </div>
+
+    <div class="footer">
+        Tracium &mdash; Tracium Ecosystem &mdash; Code &rarr; State &rarr; Graph &rarr; Visual Intelligence
+    </div>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nerva - Orchestration Layer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a2e; --border: #2a2a3e; --text: #e0e0e8; --text-dim: #8888a0; --accent: #fdcb6e; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        .nav { padding: 16px 40px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+        .nav a { color: var(--text-dim); text-decoration: none; }
+        .nav a:hover { color: var(--accent); }
+        .hero { padding: 60px 40px; background: linear-gradient(135deg, #0a0a1a, #1a1808); border-bottom: 1px solid var(--border); }
+        .hero-badge { display: inline-block; padding: 4px 12px; background: rgba(253,203,110,0.2); color: var(--accent); border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; margin-bottom: 16px; }
+        .hero h1 { font-size: 2.5rem; margin-bottom: 12px; }
+        .hero p { color: var(--text-dim); font-size: 1.1rem; max-width: 700px; }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        h2 { font-size: 1.4rem; margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+        .api-section { margin: 20px 0; }
+        .endpoint {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+        .endpoint-header {
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+        .endpoint-header:hover { background: var(--surface2); }
+        .method {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: monospace;
+            min-width: 55px;
+            text-align: center;
+        }
+        .method-get { background: rgba(85,239,196,0.2); color: #55efc4; }
+        .method-post { background: rgba(116,185,255,0.2); color: #74b9ff; }
+        .method-delete { background: rgba(255,118,117,0.2); color: #ff7675; }
+        .endpoint-path { font-family: monospace; font-size: 0.9rem; }
+        .endpoint-desc { color: var(--text-dim); font-size: 0.85rem; margin-left: auto; }
+        .endpoint-body {
+            padding: 20px 24px;
+            border-top: 1px solid var(--border);
+            display: none;
+        }
+        .endpoint.open .endpoint-body { display: block; }
+        .code-block {
+            background: var(--surface2);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .code-block .key { color: #fd79a8; }
+        .code-block .string { color: #55efc4; }
+        .code-block .number { color: #fdcb6e; }
+        .code-block .comment { color: #636e72; }
+        .label { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; font-weight: 600; }
+
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin: 30px 0;
+            flex-wrap: wrap;
+            padding: 30px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+        }
+        .flow-box {
+            padding: 16px 24px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            text-align: center;
+            min-width: 120px;
+            background: var(--surface2);
+        }
+        .flow-box.highlight { border-color: var(--accent); background: rgba(253,203,110,0.05); }
+        .flow-box h5 { font-size: 0.85rem; margin-bottom: 4px; }
+        .flow-box p { font-size: 0.7rem; color: var(--text-dim); }
+        .flow-arrow { color: var(--accent); font-size: 1.2rem; padding: 0 10px; }
+
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 20px 0; }
+        .status-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .status-card .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-bottom: 8px; }
+        .status-card h5 { font-size: 0.85rem; margin-bottom: 4px; }
+        .status-card p { font-size: 0.75rem; color: var(--text-dim); }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="index.html">&larr; All Projects</a>
+        <span style="color: var(--border)">|</span>
+        <span style="color: var(--accent); font-weight: 600;">Nerva</span>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-badge">SERVICE</div>
+        <h1>Nerva</h1>
+        <p>The orchestration backbone. Manages sessions, authentication, GitHub integration, and routes requests between clients and backend engines.</p>
+    </div>
+
+    <div class="content">
+        <h2>Request Flow</h2>
+        <div class="arch-flow">
+            <div class="flow-box"><h5>Prism / Pulse / Vector</h5><p>Client</p></div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box highlight"><h5>Nerva</h5><p>Orchestration</p></div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box"><h5>Tracium Engine</h5><p>Runtime</p></div>
+            <div class="flow-arrow" style="visibility:hidden">&rarr;</div>
+            <div class="flow-box highlight" style="margin-top:10px"><h5>Nerva</h5><p>Auth + Sessions</p></div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box"><h5>Atlas</h5><p>Analysis</p></div>
+        </div>
+
+        <h2>Session Status</h2>
+        <div class="status-grid">
+            <div class="status-card">
+                <div class="status-dot" style="background: #636e72;"></div>
+                <h5>PENDING</h5>
+                <p>Session created, queued</p>
+            </div>
+            <div class="status-card">
+                <div class="status-dot" style="background: #74b9ff;"></div>
+                <h5>RUNNING</h5>
+                <p>Engine processing</p>
+            </div>
+            <div class="status-card">
+                <div class="status-dot" style="background: #55efc4;"></div>
+                <h5>COMPLETE</h5>
+                <p>Results available</p>
+            </div>
+            <div class="status-card">
+                <div class="status-dot" style="background: #ff7675;"></div>
+                <h5>FAILED</h5>
+                <p>Error with diagnostics</p>
+            </div>
+        </div>
+
+        <h2>API Endpoints</h2>
+
+        <div class="api-section">
+            <h3 style="color: var(--accent); font-size: 1rem; margin: 20px 0 12px;">Runtime Analysis</h3>
+
+            <div class="endpoint open">
+                <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/v1/sessions/runtime</span>
+                    <span class="endpoint-desc">Create runtime trace session</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="label">Request Body</div>
+                    <div class="code-block"><pre>{
+  <span class="key">"language"</span>: <span class="string">"java"</span>,
+  <span class="key">"entrypoint"</span>: <span class="string">"Main.main"</span>,
+  <span class="key">"code"</span>: <span class="string">"class Main {\n  public static void main(String[] args) {\n    int x = 5;\n  }\n}"</span>,
+  <span class="key">"limits"</span>: {
+    <span class="key">"timeoutMs"</span>: <span class="number">5000</span>,
+    <span class="key">"maxSteps"</span>: <span class="number">1000</span>
+  }
+}</pre></div>
+                    <div class="label">Response</div>
+                    <div class="code-block"><pre>{
+  <span class="key">"sessionId"</span>: <span class="string">"sess_rt_001"</span>,
+  <span class="key">"status"</span>: <span class="string">"PENDING"</span>,
+  <span class="key">"createdAt"</span>: <span class="string">"2026-04-04T10:15:00Z"</span>
+}</pre></div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/v1/sessions/runtime/{id}</span>
+                    <span class="endpoint-desc">Get session status</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="label">Response</div>
+                    <div class="code-block"><pre>{
+  <span class="key">"sessionId"</span>: <span class="string">"sess_rt_001"</span>,
+  <span class="key">"status"</span>: <span class="string">"COMPLETE"</span>,
+  <span class="key">"totalSteps"</span>: <span class="number">47</span>,
+  <span class="key">"completedAt"</span>: <span class="string">"2026-04-04T10:15:03Z"</span>
+}</pre></div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/v1/sessions/runtime/{id}/trace</span>
+                    <span class="endpoint-desc">Get full UEF trace</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="label">Response: Full UEF document</div>
+                    <div class="code-block"><pre><span class="comment">// Returns complete UEF JSON with all steps, states, and deltas</span></pre></div>
+                </div>
+            </div>
+
+            <h3 style="color: var(--accent); font-size: 1rem; margin: 20px 0 12px;">Repository Analysis</h3>
+
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/v1/sessions/repo</span>
+                    <span class="endpoint-desc">Create repository analysis session</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="label">Request Body</div>
+                    <div class="code-block"><pre>{
+  <span class="key">"language"</span>: <span class="string">"java"</span>,
+  <span class="key">"source"</span>: {
+    <span class="key">"type"</span>: <span class="string">"github"</span>,
+    <span class="key">"owner"</span>: <span class="string">"myorg"</span>,
+    <span class="key">"repo"</span>: <span class="string">"todo-app"</span>,
+    <span class="key">"branch"</span>: <span class="string">"main"</span>
+  },
+  <span class="key">"analysisMode"</span>: <span class="string">"architecture"</span>
+}</pre></div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/v1/sessions/repo/{id}/graph</span>
+                    <span class="endpoint-desc">Get UGF graph</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="label">Response: Full UGF document</div>
+                    <div class="code-block"><pre><span class="comment">// Returns complete UGF JSON with nodes, edges, and metadata</span></pre></div>
+                </div>
+            </div>
+
+            <h3 style="color: var(--accent); font-size: 1rem; margin: 20px 0 12px;">Platform</h3>
+
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/v1/health</span>
+                    <span class="endpoint-desc">Health check</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="code-block"><pre>{
+  <span class="key">"status"</span>: <span class="string">"healthy"</span>,
+  <span class="key">"services"</span>: {
+    <span class="key">"engine"</span>: <span class="string">"connected"</span>,
+    <span class="key">"atlas"</span>: <span class="string">"connected"</span>,
+    <span class="key">"github"</span>: <span class="string">"available"</span>
+  }
+}</pre></div>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/v1/capabilities</span>
+                    <span class="endpoint-desc">Language and feature support</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="code-block"><pre>{
+  <span class="key">"languages"</span>: [<span class="string">"java"</span>],
+  <span class="key">"features"</span>: {
+    <span class="key">"runtime"</span>: <span class="number">true</span>,
+    <span class="key">"repoAnalysis"</span>: <span class="number">true</span>,
+    <span class="key">"github"</span>: <span class="number">true</span>
+  }
+}</pre></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

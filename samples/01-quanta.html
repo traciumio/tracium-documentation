@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quanta - Shared Specs & Contracts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a2e;
+            --border: #2a2a3e; --text: #e0e0e8; --text-dim: #8888a0;
+            --accent: #6c5ce7;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        .nav { padding: 16px 40px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+        .nav a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; }
+        .nav a:hover { color: var(--accent); }
+        .hero {
+            padding: 60px 40px;
+            background: linear-gradient(135deg, #0a0a1a, #1a1035);
+            border-bottom: 1px solid var(--border);
+        }
+        .hero-badge { display: inline-block; padding: 4px 12px; background: rgba(108,92,231,0.2); color: var(--accent); border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; margin-bottom: 16px; }
+        .hero h1 { font-size: 2.5rem; margin-bottom: 12px; }
+        .hero p { color: var(--text-dim); font-size: 1.1rem; max-width: 700px; }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        h2 { font-size: 1.4rem; margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        h3 { font-size: 1.1rem; margin: 24px 0 12px; color: var(--accent); }
+        .schema-viewer {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .schema-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+        .schema-tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            color: var(--text-dim);
+            border: none;
+            background: none;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .schema-tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); background: var(--surface); }
+        .schema-tab:hover { color: var(--text); }
+        .schema-content {
+            padding: 24px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            overflow-x: auto;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .schema-content pre { white-space: pre; }
+        .key { color: #fd79a8; }
+        .string { color: #55efc4; }
+        .number { color: #fdcb6e; }
+        .type { color: #74b9ff; }
+        .comment { color: #636e72; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
+        .info-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .info-card h4 { font-size: 1rem; margin-bottom: 12px; }
+        .info-card ul { list-style: none; }
+        .info-card li { padding: 6px 0; color: var(--text-dim); font-size: 0.9rem; }
+        .info-card li::before { content: ''; display: inline-block; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; margin-right: 10px; }
+        .event-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .event-table th { text-align: left; padding: 12px 16px; background: var(--surface2); color: var(--text-dim); font-size: 0.8rem; letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        .event-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .event-table tr:hover { background: var(--surface2); }
+        .event-name { color: var(--accent); font-family: monospace; font-weight: 600; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="index.html">&larr; All Projects</a>
+        <span style="color: var(--border)">|</span>
+        <span style="color: var(--accent); font-weight: 600;">Quanta</span>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-badge">SPEC</div>
+        <h1>Quanta</h1>
+        <p>The shared contracts and schemas that unify the entire Tracium ecosystem. Every product speaks the same language through UEF and UGF.</p>
+    </div>
+
+    <div class="content">
+        <h2>What Quanta Defines</h2>
+        <div class="grid-2">
+            <div class="info-card">
+                <h4>UEF - Universal Execution Format</h4>
+                <ul>
+                    <li>Session model (language, adapter, entrypoint)</li>
+                    <li>Step model (event, source anchor, delta, state)</li>
+                    <li>State model (frames, heap, globals, output)</li>
+                    <li>Value kinds (primitive, reference, object, array)</li>
+                    <li>Delta model (frame changes, heap changes)</li>
+                    <li>14 core event types</li>
+                    <li>Diagnostics model</li>
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4>UGF - Unified Graph Format</h4>
+                <ul>
+                    <li>Node types (repo, module, package, class, method)</li>
+                    <li>Edge types (DECLARES, IMPORTS, CALLS, etc.)</li>
+                    <li>Certainty levels (high, medium, low)</li>
+                    <li>Source anchor references</li>
+                    <li>Architecture groupings</li>
+                    <li>Graph metadata</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2>UEF Schema Sample</h2>
+        <div class="schema-viewer">
+            <div class="schema-tabs">
+                <button class="schema-tab active" onclick="showTab('session')">Session</button>
+                <button class="schema-tab" onclick="showTab('step')">Step</button>
+                <button class="schema-tab" onclick="showTab('state')">State</button>
+                <button class="schema-tab" onclick="showTab('heap')">Heap</button>
+            </div>
+            <div class="schema-content">
+                <pre id="tab-session">{
+  <span class="key">"uefVersion"</span>: <span class="string">"0.1.0"</span>,
+  <span class="key">"session"</span>: {
+    <span class="key">"id"</span>: <span class="string">"sess_001"</span>,
+    <span class="key">"language"</span>: <span class="string">"java"</span>,
+    <span class="key">"adapter"</span>: <span class="string">"jdi"</span>,
+    <span class="key">"runtimeVersion"</span>: <span class="string">"21"</span>,
+    <span class="key">"entrypoint"</span>: <span class="string">"Main.main"</span>,
+    <span class="key">"startedAt"</span>: <span class="string">"2026-04-04T10:15:00Z"</span>
+  },
+  <span class="key">"steps"</span>: [ <span class="comment">/* ... ordered execution steps ... */</span> ],
+  <span class="key">"diagnostics"</span>: []
+}</pre>
+                <pre id="tab-step" style="display:none">{
+  <span class="key">"step"</span>: <span class="number">3</span>,
+  <span class="key">"event"</span>: <span class="string">"VARIABLE_ASSIGNED"</span>,
+  <span class="key">"threadId"</span>: <span class="string">"main"</span>,
+  <span class="key">"source"</span>: {
+    <span class="key">"file"</span>: <span class="string">"src/Main.java"</span>,
+    <span class="key">"symbol"</span>: <span class="string">"Main.main"</span>,
+    <span class="key">"line"</span>: <span class="number">5</span>,
+    <span class="key">"column"</span>: <span class="number">12</span>
+  },
+  <span class="key">"delta"</span>: {
+    <span class="key">"frameChanges"</span>: [{
+      <span class="key">"frameId"</span>: <span class="string">"frame_main_1"</span>,
+      <span class="key">"locals"</span>: { <span class="key">"x"</span>: { <span class="key">"kind"</span>: <span class="string">"primitive"</span>, <span class="key">"type"</span>: <span class="string">"int"</span>, <span class="key">"value"</span>: <span class="number">5</span> } }
+    }]
+  },
+  <span class="key">"state"</span>: { <span class="comment">/* materialized full state at this step */</span> }
+}</pre>
+                <pre id="tab-state" style="display:none">{
+  <span class="key">"frames"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="string">"frame_main_1"</span>,
+      <span class="key">"name"</span>: <span class="string">"main"</span>,
+      <span class="key">"declaringType"</span>: <span class="string">"Main"</span>,
+      <span class="key">"source"</span>: { <span class="key">"file"</span>: <span class="string">"src/Main.java"</span>, <span class="key">"line"</span>: <span class="number">14</span> },
+      <span class="key">"locals"</span>: {
+        <span class="key">"arr"</span>: { <span class="key">"kind"</span>: <span class="string">"reference"</span>, <span class="key">"ref"</span>: <span class="string">"obj_1"</span> },
+        <span class="key">"i"</span>: { <span class="key">"kind"</span>: <span class="string">"primitive"</span>, <span class="key">"type"</span>: <span class="string">"int"</span>, <span class="key">"value"</span>: <span class="number">2</span> }
+      },
+      <span class="key">"status"</span>: <span class="string">"active"</span>
+    }
+  ],
+  <span class="key">"heap"</span>: { <span class="comment">/* ... heap objects ... */</span> },
+  <span class="key">"globals"</span>: {},
+  <span class="key">"stdout"</span>: <span class="string">""</span>,
+  <span class="key">"stderr"</span>: <span class="string">""</span>
+}</pre>
+                <pre id="tab-heap" style="display:none">{
+  <span class="key">"obj_1"</span>: {
+    <span class="key">"kind"</span>: <span class="string">"array"</span>,
+    <span class="key">"type"</span>: <span class="string">"int[]"</span>,
+    <span class="key">"elements"</span>: [
+      { <span class="key">"kind"</span>: <span class="string">"primitive"</span>, <span class="key">"type"</span>: <span class="string">"int"</span>, <span class="key">"value"</span>: <span class="number">3</span> },
+      { <span class="key">"kind"</span>: <span class="string">"primitive"</span>, <span class="key">"type"</span>: <span class="string">"int"</span>, <span class="key">"value"</span>: <span class="number">1</span> },
+      { <span class="key">"kind"</span>: <span class="string">"primitive"</span>, <span class="key">"type"</span>: <span class="string">"int"</span>, <span class="key">"value"</span>: <span class="number">4</span> }
+    ]
+  },
+  <span class="key">"obj_2"</span>: {
+    <span class="key">"kind"</span>: <span class="string">"object"</span>,
+    <span class="key">"type"</span>: <span class="string">"Node"</span>,
+    <span class="key">"fields"</span>: {
+      <span class="key">"value"</span>: { <span class="key">"kind"</span>: <span class="string">"primitive"</span>, <span class="key">"type"</span>: <span class="string">"int"</span>, <span class="key">"value"</span>: <span class="number">42</span> },
+      <span class="key">"next"</span>: { <span class="key">"kind"</span>: <span class="string">"reference"</span>, <span class="key">"ref"</span>: <span class="string">"obj_3"</span> }
+    }
+  }
+}</pre>
+            </div>
+        </div>
+
+        <h2>UEF Event Types</h2>
+        <table class="event-table">
+            <thead><tr><th>Event</th><th>Description</th><th>Category</th></tr></thead>
+            <tbody>
+                <tr><td class="event-name">SESSION_STARTED</td><td>Execution session begins</td><td>Lifecycle</td></tr>
+                <tr><td class="event-name">LINE_CHANGED</td><td>Execution moves to new source line</td><td>Flow</td></tr>
+                <tr><td class="event-name">METHOD_ENTERED</td><td>Method call begins, new frame pushed</td><td>Flow</td></tr>
+                <tr><td class="event-name">METHOD_EXITED</td><td>Method returns, frame popped</td><td>Flow</td></tr>
+                <tr><td class="event-name">VARIABLE_ASSIGNED</td><td>Local variable receives a value</td><td>State</td></tr>
+                <tr><td class="event-name">OBJECT_ALLOCATED</td><td>New object created on heap</td><td>State</td></tr>
+                <tr><td class="event-name">FIELD_UPDATED</td><td>Object field value changed</td><td>State</td></tr>
+                <tr><td class="event-name">ARRAY_ELEMENT_UPDATED</td><td>Array element value changed</td><td>State</td></tr>
+                <tr><td class="event-name">EXCEPTION_THROWN</td><td>Exception object thrown</td><td>Error</td></tr>
+                <tr><td class="event-name">EXCEPTION_CAUGHT</td><td>Exception caught by handler</td><td>Error</td></tr>
+                <tr><td class="event-name">STDOUT_APPENDED</td><td>New output written to stdout</td><td>Output</td></tr>
+                <tr><td class="event-name">STDERR_APPENDED</td><td>New output written to stderr</td><td>Output</td></tr>
+                <tr><td class="event-name">SESSION_FINISHED</td><td>Execution session ends</td><td>Lifecycle</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function showTab(name) {
+            document.querySelectorAll('.schema-content pre').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.schema-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + name).style.display = 'block';
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>
