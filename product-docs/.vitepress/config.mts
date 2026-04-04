@@ -1,6 +1,9 @@
 import { defineConfig } from 'vitepress'
 
+const base = process.env.DOCS_BASE ?? '/'
+
 export default defineConfig({
+  base,
   title: 'Tracium',
   description: 'Execution Intelligence Infrastructure',
   head: [
@@ -102,7 +105,8 @@ export default defineConfig({
 
     footer: {
       message: 'Execution Intelligence Infrastructure',
-      copyright: 'Tracium',
+      copyright:
+        'Tracium <a class="internal-docs-footer-link" href="https://github.com/traciumio/tracium-documentation/tree/main/internal-docs" target="_blank" rel="noreferrer">Internal Docs</a>',
     },
   },
 })

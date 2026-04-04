@@ -1,0 +1,25 @@
+.VPFooter {
+  position: relative;
+}
+
+.VPFooter .internal-docs-footer-link {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.VPFooter .internal-docs-footer-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .VPFooter .internal-docs-footer-link {
+    position: static;
+    display: inline-block;
+    margin-left: 0.5rem;
+  }
+}
