@@ -1,100 +1,131 @@
 # Tracium Engine
 
-Tracium Engine is the **execution intelligence core** — a State Time Machine that records every state transition of a running program, allows rewind, forks timelines, and simulates alternate outcomes.
+Tracium Engine is the execution-recording core of Tracium. It captures running code, turns execution into structured traces, stores them locally in TraciumDB, and exposes analysis and live-debugging workflows through a REST API, SSE, an embedded UI, and a standalone agent.
 
-## Quick Start
+## Current Repository Scope
 
-```bash
-cd tracium-engine
-./gradlew :engine-service:bootRun
-```
+The current engine repository contains 4 modules and 89 Java source files:
 
-Open `http://localhost:8080` — the Engine Explorer UI loads with the API.
+- `engine-core`
+- `engine-java-jdi-adapter`
+- `engine-service`
+- `engine-agent`
 
 ## What It Does
 
-| Capability | Description |
-|-----------|-------------|
-| **Execute & Capture** | Run Java code, capture every variable, every heap object, every step |
-| **Time Machine** | Root cause analysis, divergence detection, execution queries |
-| **Fork Timelines** | "What if X was 0?" — real re-execution with state injection via JDI |
-| **AI Studio** | Trace summarization, focused views, natural language explanations |
-| **Causality** | Data dependency graphs, taint tracking, dynamic program slicing |
-| **Simulation** | Chaos injection, probability exploration, prophecy mode |
-| **Execution Diffing** | Compare two traces, detect regressions, behavioral equivalence |
-| **Attach Mode** | Connect to running JVMs for production recording |
-| **Streaming** | Real-time SSE step delivery during execution |
-| **TraciumDB** | Embedded storage engine — no external database needed |
+The engine currently supports:
+
+- sandbox execution of Java code
+- JDI attach mode for running JVMs
+- time-machine analysis
+- real and predictive fork workflows
+- execution diffing
+- AI-oriented summaries and narratives
+- causality and slicing helpers
+- simulation helpers
+- SSE streaming for runtime sessions
+- TraciumDB embedded persistence
+- embedded browser UI
+- standalone attach agent
+
+## Advanced Capture Features in Source
+
+The codebase also includes enterprise-scaling components:
+
+- capture budgets and budgeted state capture
+- event ring buffer
+- request-level sampling
+- circuit breaker
+- async write queue
+- retention policy
+
+Some of these are active defaults today, and some are currently reusable building blocks that are present in source but not yet the default service path.
 
 ## Architecture
 
-```
+```text
 tracium-engine/
-├── engine-core/                # Language-agnostic core
-│   ├── model/                  #   UEF data models (Value, ExecutionState, StackFrame, HeapObject)
-│   ├── serializer/             #   UEF JSON serializer + deserializer
-│   ├── timeline/               #   Timeline, checkpoints, root cause, fork, fork tree
-│   ├── comparison/             #   Execution diffing (4 alignment strategies)
-│   ├── ai/                     #   Trace compression, focused views, NL converter
-│   ├── causality/              #   Causal graph (DDG, CDG, taint, slicing)
-│   ├── simulation/             #   Chaos injection, probability exploration, prophecy
-│   ├── distributed/            #   Cross-service trace assembly
-│   ├── journal/                #   Write-ahead log with hash-chain integrity
-│   └── storage/                #   TraciumDB embedded storage engine
-├── engine-java-jdi-adapter/    # Java-specific execution via JDI
-│   ├── JavaJdiAdapter          #   Launch + attach + stream + fork
-│   ├── JdiExecutionEngine      #   Sandbox execution with real-time callbacks
-│   ├── JdiForkEngine           #   Real re-execution with state injection
-│   ├── JdiAttachEngine         #   Production recording via AttachingConnector
-│   ├── SandboxPolicy           #   Memory/network/filesystem restrictions
-│   └── JavaCompiler            #   Source compilation with javac
-└── engine-service/             # Spring Boot REST API + embedded UI
-    ├── RuntimeController       #   Execute, get session, get trace
-    ├── TimeMachineController   #   Root cause, divergence, query, fork, real fork
-    ├── StreamingController     #   SSE real-time step delivery
-    ├── AiConsumptionController #   Summarize, focus, explain, narrative
-    ├── DiffController          #   Create/retrieve trace comparisons
-    ├── CausalityController     #   Causal graph, taint, program slice
-    ├── SimulationController    #   Explore, chaos, predict, fork tree, counterfactual
-    ├── AttachController        #   Production recording endpoint
-    ├── StorageController       #   TraciumDB browser (stats, search, browse)
-    └── Engine Explorer UI      #   Embedded React UI at /
+  engine-core/
+    - UEF models
+    - state model
+    - timeline / time machine
+    - diffing
+    - AI helpers
+    - causality
+    - simulation
+    - distributed assembly helpers
+    - TraciumDB
+    - sampling / retention / async storage primitives
+
+  engine-java-jdi-adapter/
+    - JavaCompiler
+    - JdiExecutionEngine
+    - JdiAttachEngine
+    - JdiForkEngine
+    - BudgetedStateCapture
+    - EventRingBuffer
+    - SandboxPolicy
+
+  engine-service/
+    - runtime API
+    - attach API
+    - time-machine API
+    - diffing API
+    - AI API
+    - causality API
+    - simulation API
+    - TraciumDB API
+    - SSE streaming
+    - embedded UI
+    - auth / metrics / swagger
+
+  engine-agent/
+    - TraciumAgent
+    - AgentConfig
+    - standalone attach workflow
 ```
 
-## Tech Stack
+## How It Runs
 
-| Component | Technology |
-|-----------|-----------|
-| Language | Java 26 |
-| Framework | Spring Boot 4.0.5 |
-| Build | Gradle 9.4.1 |
-| Debugger | JDI (Java Debug Interface) |
-| Serialization | Jackson |
-| Storage | TraciumDB (embedded, file-based) |
-| UI | React 18 + TypeScript + Vite (embedded) |
-| Tests | 244 tests, JUnit 5 |
+### Sandbox Mode
 
-## What It Captures
+1. compile Java source
+2. launch a JVM under JDI
+3. capture steps, state, and deltas
+4. assemble a UEF trace
+5. persist the trace in TraciumDB
 
-For every execution step:
+### Attach Mode
 
-- **Stack frames** — method name, declaring type, local variables, parameters
-- **Heap objects** — fields, array elements, stable object identity, reference graph
-- **State deltas** — before/after values for every mutation
-- **Event type** — SESSION_STARTED, VARIABLE_ASSIGNED, METHOD_ENTERED, OBJECT_ALLOCATED, EXCEPTION_THROWN, etc.
-- **Source anchor** — file, symbol, line number, column
-- **Stdout/stderr** — captured from the target JVM process
+1. connect to a running JVM over JDWP / JDI
+2. capture bounded state using a recording strategy
+3. assemble an observed-mode UEF trace
+4. persist the trace in TraciumDB
 
 ## Storage
 
-TraciumDB stores all data as human-readable files:
+TraciumDB stores:
 
-```
-data/traciumdb/
-├── traces/sess_abc.trace    ← plain JSON (open in VS Code)
-├── index.db                 ← session metadata index
-├── steps.idx                ← variable/value search index
-└── forks.db                 ← fork tree relationships
-```
+- trace files
+- metadata index
+- variable/value search index
+- fork relationships
 
-No PostgreSQL, no MongoDB, no Redis. Just files. See [TraciumDB documentation](/engine/traciumdb) for details.
+No external database is required.
+
+## User Interfaces
+
+You can use the engine through:
+
+- REST API
+- Swagger UI
+- SSE streaming endpoints
+- embedded UI at `/`
+- standalone `tracium-agent.jar`
+
+## Current Caveats
+
+- Java is the only real language adapter today
+- sandbox execution is the most mature execution path
+- attach mode is shipped and usable, but production hardening is still improving
+- async storage, retention, circuit breaking, and full sampling control are present in source but not yet the default end-to-end service flow

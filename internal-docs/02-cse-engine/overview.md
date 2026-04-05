@@ -2,153 +2,234 @@
 
 ## Purpose
 
-`CSE` (`Code State Engine`) is the execution recording and intelligence core of the ecosystem.
+The Code State Engine (CSE) is the execution-recording core inside the Tracium Engine repository.
 
-Its purpose is to turn program execution into a structured, persistent, queryable, replayable, language-agnostic state timeline.
+Its job is to turn running code into structured execution data:
 
-The core abstraction is:
+`Code -> Runtime events -> Normalized state -> Timeline -> UEF trace -> TraciumDB`
 
-`Code -> Execution -> Runtime Signals -> Normalized State -> Timeline -> Persistent UEF`
+In the current repository, this is no longer just a conceptual engine. It is a concrete 4-module system with:
 
-The positioning:
+- `engine-core`
+- `engine-java-jdi-adapter`
+- `engine-service`
+- `engine-agent`
 
-> CSE is to execution what Kafka is to events: it captures, structures, persists, and makes execution data available to any consumer.
+At the time of this document, the engine contains 89 Java source files across those four modules.
+
+## Current Scope
+
+The current Tracium Engine implements or exposes:
+
+- sandbox execution for Java snippets and entrypoints
+- JDI attach mode for observing running JVMs
+- time-machine operations over recorded traces
+- execution diffing
+- AI-oriented trace compression and explanation helpers
+- causality and program slicing helpers
+- simulation and fork-tree helpers
+- SSE-based execution streaming
+- TraciumDB embedded persistence
+- an embedded browser UI served by `engine-service`
+- a standalone attach agent in `engine-agent`
+
+It also contains enterprise-scaling components in source:
+
+- `CaptureBudget`
+- `BudgetedStateCapture`
+- `EventRingBuffer`
+- `SamplingEngine`
+- `SamplingConfig`
+- `SamplingDecision`
+- `SamplingHeaderCodec`
+- `CircuitBreaker`
+- `AsyncWriteQueue`
+- `RetentionPolicy`
+- `TraciumAgent`
+- `AgentConfig`
+
+Some of these are already part of active execution paths, and some are currently reusable building blocks that still need end-to-end wiring in the default service path. Documentation must distinguish those two states clearly.
 
 ## Responsibilities
 
-`CSE` is responsible for:
+CSE is responsible for:
 
-- launching execution through language-specific adapters (sandbox mode)
-- observing running processes through attach-mode instrumentation (production recording mode)
-- capturing runtime events at configurable fidelity levels
-- streaming events in real-time to live consumers
-- modeling stack, heap, references, and source location
-- normalizing execution into stable contracts
-- producing persistent UEF traces that outlive the execution session
-- supporting execution comparison and diffing
-- carrying correlation IDs for distributed execution
+- executing code through language adapters
+- observing live JVMs through JDI attach mode
+- capturing runtime events and execution state
+- normalizing stack, heap, deltas, source anchors, and recording metadata
+- building ordered timelines over captured steps
+- serializing traces to UEF
+- storing traces in TraciumDB
+- exposing traces to REST, SSE, UI, and agent consumers
+- supporting time-machine, diffing, AI, causality, and simulation features over stored traces
 
 ## Non-Responsibilities
 
-`CSE` does not:
+CSE does not currently try to be:
 
-- render UI
-- decide final educational animation styles
-- infer repository-wide architecture from static code alone
-- store product-specific user settings
-- own trace storage (Nerva owns the trace store; CSE produces traces)
-- own AI intelligence logic (CSE produces AI-consumable data; intelligence layer consumes it)
+- a generic distributed-tracing platform by itself
+- a general-purpose database
+- a language-agnostic orchestration layer across the whole Tracium ecosystem
+- a full static-analysis engine
+- a hosted cloud service
+
+Related ecosystem products may still exist, but the engine repository now owns its own embedded persistence and browser UI.
 
 ## Design Principles
 
-### Headless by Default
+### Execution Is Data
 
-`CSE` must work without a frontend. If the UI disappears, the engine still produces valid outputs. It is infrastructure, not an application.
+The primary output is a durable execution artifact, not a temporary debugger session.
 
 ### Truth First
 
-The engine models execution faithfully. Simplification happens in visualization layers, not in the engine core.
+The engine prefers faithful runtime state over simplified educational abstractions.
 
-### Execution Is Data
+### Stable Contracts
 
-Execution traces are durable artifacts, not ephemeral visualizations. They are stored, queried, compared, and consumed by AI. The engine produces data that compounds in value over time.
+The core contract is the UEF trace plus stable REST and storage behavior, even if the internal capture pipeline evolves.
 
-### Record, Don't Just Execute
+### Sandbox and Observation Are Both First-Class
 
-The engine supports both launching execution (sandbox) and observing execution (attach mode). Production recording is a first-class capability, not an afterthought.
+The engine supports both launching code and attaching to already-running JVMs.
 
-### Stream, Don't Just Batch
+### Storage Is Embedded
 
-Events are available in real-time during capture, not only as a completed document after execution ends.
+The engine persists to TraciumDB locally. It does not require PostgreSQL, MongoDB, Redis, or a separate trace-store process.
 
-### Language Adapters at the Edge
+### UI Is Embedded, Not Required
 
-Language-specific complexity belongs in adapters. The core state model should stay stable.
+The engine now serves an embedded UI through `engine-service`, but the UI remains a consumer of engine data rather than the source of truth.
 
-### Stable Contracts Over Clever Internals
+## Module Layout
 
-The engine can evolve internally, but `UEF` must remain intentional and versioned.
+### 1. `engine-core`
 
-## Internal Modules
+Language-agnostic domain and storage layer.
 
-### 1. Execution Layer
+Owns:
 
-Starts (sandbox mode) or attaches to (observation mode) code execution through a language adapter.
+- UEF models: `UefTrace`, `UefStep`, `UefSession`
+- state model: `ExecutionState`, `StackFrame`, `HeapObject`, `Value`, `StateDelta`
+- time-machine logic: `ExecutionTimeline`, `RootCauseLocator`, `TimelineFork`, `ForkTree`, `CheckpointStore`
+- diffing: `ExecutionDiff`, `DiffResult`, `StepDiff`, `AlignmentStrategy`
+- AI helpers: `TraceCompressor`, `TraceFocuser`, `NaturalLanguageConverter`
+- causality: `CausalGraph`
+- simulation: `SimulationEngine`
+- distributed assembly: `DistributedTraceAssembler`
+- persistence: `TraciumDB`, `TraceStore`, `MetadataIndex`, `StepIndex`, `ForkStore`
+- scaling primitives: sampling, retention, async storage, circuit breaker
 
-### 2. Runtime Capture Layer
+### 2. `engine-java-jdi-adapter`
 
-Collects raw events such as method entry, variable mutation, object creation, and exceptions. Supports configurable capture fidelity (full, sampled, selective, minimal).
+Java runtime adapter.
 
-### 3. State Engine
+Owns:
 
-Transforms raw runtime signals into normalized state objects. The intellectual core of the engine.
+- source compilation
+- launch-mode capture through JDI
+- attach-mode capture through JDI
+- fork / re-execution support
+- budgeted capture for production recording
+- event ring buffer implementation for async attach pipelines
+- sandbox policy for launched JVMs
 
-### 4. Timeline Engine
+### 3. `engine-service`
 
-Builds ordered steps, checkpoints, and playback metadata. Supports streaming emission during capture.
+Deployable Spring Boot application.
 
-### 5. UEF Serializer
+Owns:
 
-Exports runtime state into a stable wire format for other products.
+- REST endpoints
+- SSE streaming endpoints
+- TraciumDB-backed session persistence through `SessionStore`
+- embedded static UI serving
+- API key authentication support
+- actuator and swagger integration
 
-### 6. Event Stream
+### 4. `engine-agent`
 
-Emits execution events in real-time to live consumers via WebSocket/SSE. Runs in parallel with serialization.
+Standalone command-line attach agent.
 
-Detailed documentation for infrastructure capabilities:
+Owns:
 
-- [Execution Persistence Model](execution-persistence.md) - trace storage, indexing, querying
-- [Streaming Model](streaming-model.md) - real-time event delivery
-- [Production Recording](production-recording.md) - attach mode, recording agents
-- [Execution Diffing](execution-diffing.md) - trace comparison and regression detection
-- [Distributed Execution](distributed-execution.md) - cross-service correlation
-- [AI Consumption](ai-consumption.md) - LLM-friendly trace representations
+- CLI parsing and defaults
+- reconnect loop for long-running observation
+- local TraciumDB output
+- production-oriented attach workflow without Spring Boot
 
-## Supported Use Cases
+## Primary Flows
 
-`CSE` should eventually support:
+### Sandbox Runtime Flow
 
-- snippet execution visualization and step-by-step replay
-- debugging-accurate state inspection with full stack and heap
-- production execution recording (attach to running JVM)
-- persistent trace storage and historical querying
-- real-time execution streaming to live consumers
-- execution diffing and regression detection across code versions
-- distributed execution correlation across services
-- trace-based AI explanation and reasoning
-- CI/CD trace capture for test execution
-- object graph inspection and aliasing verification
-- recursion understanding and algorithm analysis
+1. `RuntimeController` receives `RuntimeSessionRequest`
+2. `EngineRuntimeService` selects `ExecutionAdapter`
+3. `JavaJdiAdapter` compiles and launches code
+4. `JdiExecutionEngine` captures steps
+5. `engine-core` normalizes the trace to UEF
+6. `SessionStore` persists the trace to TraciumDB
+7. `engine-service` exposes the result through REST, UI, and optional SSE
 
-## Initial Language Strategy
+### Attach / Production Recording Flow
 
-The architecture is multi-language, but implementation begins with Java.
+1. `AttachController` or `TraciumAgent` builds `AttachRequest`
+2. `JdiAttachEngine` connects to a running JVM
+3. `BudgetedStateCapture` bounds stack, object depth, fields, arrays, and heap size
+4. The adapter assembles an observed-mode UEF trace
+5. The trace is persisted to TraciumDB
 
-Recommended order:
+### Trace Analysis Flow
 
-1. Java
-2. Python
-3. JavaScript
-4. C++
+Once a trace exists, `engine-core` powers:
 
-The first production-quality adapter should be Java because:
+- root-cause analysis
+- divergence detection
+- predictive fork analysis
+- real fork re-execution
+- diffing
+- causality analysis
+- simulation helpers
+- AI-friendly compression and narrative generation
+- TraciumDB search and fork-tree navigation
 
-- the runtime model is rich and explicit
-- stack and heap concepts are clear
-- debugger integrations are mature
+## Current Capability Notes
+
+The engine has a broad feature surface, but not all subsystems are equally mature.
+
+Important examples:
+
+- TraciumDB is active and used by `SessionStore`
+- attach mode is exposed through REST and the standalone agent
+- capture budgets are wired into attach-mode capture
+- sampling, circuit breaker, async storage, and retention exist in core but are not yet the default `engine-service` persistence path
+- distributed execution is currently a core-library model, not a full end-to-end product flow
 
 ## Output Contract
 
-The primary output of `CSE` is `UEF`.
+The primary artifact is a `UefTrace` containing:
 
-UEF traces are persistent, queryable artifacts that outlive the execution session. They are stored in the trace store (owned by Nerva) and addressable by stable URI.
+- session metadata
+- recording context
+- correlation context
+- ordered steps
+- normalized state and deltas
+- diagnostics
 
-Consumers include:
+The engine also produces:
 
-- Trace Store (Nerva) - persistence and indexing
-- Visualization Platform (Prism) - interactive replay and visualization
-- SDK (Vector) - programmatic access, CI/CD integration
-- IDE Plugin (Pulse) - inline execution state in editor
-- AI and analytics layers - reasoning over real execution data
-- Comparison engine - execution diffing and regression detection
-- Monitoring dashboards - real-time execution streaming
+- TraciumDB metadata for storage and search
+- REST responses for runtime and analysis endpoints
+- SSE step messages for live consumers
+
+## Related Documents
+
+- [Execution Layer](execution-layer.md)
+- [State Engine](state-engine.md)
+- [Streaming Model](streaming-model.md)
+- [Production Recording](production-recording.md)
+- [Execution Diffing](execution-diffing.md)
+- [Distributed Execution](distributed-execution.md)
+- [AI Consumption](ai-consumption.md)
+- [TraciumDB](traciumdb.md)
+- [Timeline](timeline.md)

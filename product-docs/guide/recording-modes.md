@@ -1,59 +1,89 @@
 # Recording Modes
 
-Tracium supports two ways of capturing execution.
+Tracium Engine currently supports two real recording modes.
 
-## Sandbox Mode (Launch)
+## 1. Sandbox Mode
 
-The engine creates, controls, and terminates the target process.
+Sandbox mode launches the target JVM itself.
 
-```
-Engine creates JVM → attaches JDI → captures every step → terminates
-```
-
-| Aspect | Detail |
-|--------|--------|
-| Control | Engine has full control |
-| Fidelity | Full — every step captured |
-| Determinism | Single-threaded, deterministic |
-| Safety | Sandboxed (CPU, memory, filesystem limits) |
-| Use case | Learning, debugging snippets, testing |
-
-**This is the default mode and what's implemented today.**
-
-## Observation Mode (Attach) <Badge type="warning" text="Planned" />
-
-The engine connects to an already-running process.
-
-```
-Running JVM → Engine attaches JDI → captures selectively → detaches
+```text
+Engine launches JVM -> JDI capture -> UEF trace -> TraciumDB
 ```
 
-| Aspect | Detail |
-|--------|--------|
-| Control | Engine observes, doesn't control |
-| Fidelity | Configurable (sampled, selective, minimal) |
-| Overhead | < 5% for method boundary capture |
-| Use case | Production debugging, monitoring, incident investigation |
+### Characteristics
 
-### Recording Strategies (Planned)
+- full control by the engine
+- strongest capture fidelity
+- execution limits enforced by the engine
+- best path for snippets, experiments, and deep state capture
 
-- **Method boundary** — capture entry/exit with params and return values
-- **Breakpoint** — full state at specific source locations
-- **Event filter** — only exceptions, specific method calls
+### Typical Use Cases
 
-## Recording Context
+- learning and demos
+- debugging small programs
+- validating time-machine features
+- generating full traces for comparison
 
-Every trace carries metadata about how it was captured:
+## 2. Observation Mode (Attach)
 
-```json
-{
-  "recording": {
-    "mode": "sandbox",
-    "fidelity": "full",
-    "samplingStrategy": "none",
-    "environment": "development"
-  }
-}
+Observation mode attaches to a running JVM.
+
+```text
+Running JVM -> JDI attach -> bounded capture -> UEF trace -> TraciumDB
 ```
 
-Consumers always know: was this a complete capture or a sampled one?
+### Characteristics
+
+- the engine observes instead of launching
+- capture can be selective or bounded
+- meant for real services and live JVMs
+- available through both REST and the standalone agent
+
+## Attach Strategies
+
+Current strategies:
+
+- `full`
+- `method-boundary`
+- `breakpoint`
+- `event-filter`
+
+## Capture Budgets
+
+Attach mode can apply bounded capture rules for:
+
+- frames
+- object depth
+- object count
+- field count
+- array size
+
+This is what keeps production-oriented recording practical.
+
+## Standalone Agent
+
+For long-running or deployment-side observation, use `tracium-agent.jar`.
+
+This gives you:
+
+- no Spring Boot dependency
+- CLI configuration
+- reconnect behavior
+- local TraciumDB output
+
+## Recording Context in Traces
+
+Every trace carries recording metadata such as:
+
+- mode
+- fidelity
+- sampling strategy name
+- environment
+
+That lets consumers understand whether a trace was full sandbox capture or a budgeted observed trace.
+
+## Current Notes
+
+- sandbox is the most mature path
+- attach mode is shipped and exposed
+- advanced controls such as sampling and circuit breaking exist in source but are not yet the default end-to-end service path

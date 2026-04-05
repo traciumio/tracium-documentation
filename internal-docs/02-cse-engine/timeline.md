@@ -2,135 +2,114 @@
 
 ## Role
 
-The timeline engine turns normalized state changes into an ordered execution history.
+The timeline layer turns captured execution into a navigable history.
 
-It exists so that runtime understanding is not limited to a single snapshot.
+In the current engine this responsibility is spread across several `engine-core` classes rather than a single monolithic "timeline engine".
+
+## Current Core Classes
+
+- `ExecutionTimeline`
+- `CheckpointStore`
+- `RootCauseLocator`
+- `TimelineFork`
+- `ForkTree`
+
+Together they provide the time-machine behavior exposed by the service.
 
 ## What a Timeline Represents
 
-A timeline is an immutable ordered series of execution steps inside a session.
+A timeline is an ordered sequence of `UefStep` values within a `UefTrace`.
 
-Each step should include:
+Each step may include:
 
 - step number
 - event type
 - source anchor
 - state delta
-- optional materialized state
-- playback metadata
+- full materialized state
 
-## Timeline Guarantees
+## `ExecutionTimeline`
 
-The timeline must guarantee:
+`ExecutionTimeline` provides:
 
-- stable ordering inside a session
-- reproducible step identifiers
-- clear session boundaries
-- explicit distinction between observed and inferred events
+- step lookup
+- state lookup
+- variable queries
+- event queries
+- method queries
+- line queries
+- checkpoint generation
 
-## Checkpoints
+The default checkpoint interval in the current implementation is 10 steps.
 
-To support efficient playback, the engine should create checkpoints.
+## `RootCauseLocator`
 
-Checkpoint purposes:
+`RootCauseLocator` walks backward through deltas and visible state to build a causal chain for a variable.
 
-- fast seeking
-- reverse navigation support
-- partial state reconstruction
+This powers:
 
-Recommended model:
+- root-cause analysis
+- divergence detection
+- first-occurrence discovery
 
-- event deltas between checkpoints
-- full or partial materialized snapshots at checkpoint intervals
+It is useful and real, but it should still be documented as trace-driven reasoning rather than full compiler-grade data-flow analysis.
 
-## Playback Operations
+## `TimelineFork`
 
-The timeline should eventually support:
+`TimelineFork` is the predictive fork layer.
 
-- next step
-- previous step
-- jump to step
-- jump to checkpoint
-- play
-- pause
+It:
 
-Future operations:
+- takes the state at a chosen step
+- applies modifications
+- predicts likely divergence points
 
-- branch comparison (diff two traces aligned by source anchors)
-- time-travel debugging (navigate backward through persistent traces)
-- alternate path replay if supported by deterministic re-execution
-- cross-session navigation (jump between correlated distributed traces)
-- trace search (find steps matching criteria across stored traces)
+This is separate from adapter-backed real re-execution forks.
 
-## Session Metadata
+## `ForkTree`
 
-Each timeline should also retain:
+`ForkTree` tracks branch relationships and supports:
 
-- language
-- adapter version
-- runtime version
-- execution limits
-- diagnostics
-- timestamps
+- root branch registration
+- child branch attachment
+- branch summaries
+- counterfactual queries
+- reconstructed full timelines
 
-## Long-Run Strategy
+Its job is to organize alternate timelines once they exist.
 
-Large sessions can become expensive.
+## Relationship to Real Re-Execution
 
-The timeline engine should be designed for:
+There are two different fork concepts in the repo:
 
-- compression of repeated patterns
-- lazy materialization
-- step window retrieval
-- partial loading for UI clients
+### Predictive Fork
 
-## Streaming During Capture
+- owned by `TimelineFork`
+- stays inside `engine-core`
+- works over an existing trace
 
-The timeline supports two emission modes:
+### Real Fork
 
-- `batch`: complete timeline available after execution finishes
-- `streaming`: steps emitted to consumers as they are captured, timeline grows incrementally
+- owned by `JdiForkEngine` and surfaced by `TimeMachineController`
+- relaunches code and injects values at runtime
+- produces a new trace
 
-In streaming mode, the timeline is append-only during capture. Steps are finalized as they arrive. Consumers can subscribe to live step emission via WebSocket or SSE.
+Docs should keep these separate.
 
-See [Streaming Model](streaming-model.md) for full details.
+## Persistence Relationship
 
-## Execution Versioning
+Timelines are stored as traces in TraciumDB.
 
-Timelines can carry version metadata for comparison:
+That allows:
 
-- code version (commit hash, branch)
-- build number
-- environment (development, staging, production)
-- user-defined tags
+- replay after restart
+- root-cause and divergence over stored sessions
+- fork-tree browsing
+- cross-session comparison
 
-This enables execution diffing: compare the timeline from commit A against commit B for the same input. See [Execution Diffing](execution-diffing.md) for the comparison model.
+## Current Caveats
 
-## Relationship to Persistence
-
-The timeline is not ephemeral. Once complete, it is persisted to the trace store as a durable artifact.
-
-Persisted timelines can be:
-
-- loaded and replayed days, weeks, or months later
-- queried by metadata (language, entrypoint, tags, time range)
-- compared with other timelines
-- consumed by AI for explanation and reasoning
-- shared via stable URI
-
-See [Execution Persistence Model](execution-persistence.md) for storage and query details.
-
-## Relationship to Visualization
-
-The timeline is not a UI animation script.
-
-It is a structured execution history from which different experiences can be derived.
-
-Examples:
-
-- a strict debugger-like stepper
-- a simplified learner playback
-- an AI explanation stream
-- a monitoring dashboard fed by real-time events
-- a regression detection pipeline comparing timelines across versions
-- a CI/CD integration capturing test execution traces
+- checkpoints are simple periodic snapshots, not a specialized high-compression storage layer
+- predictive forking is heuristic
+- real re-execution is more advanced but also more operationally fragile than pure trace navigation
+- timeline analysis is strongest when the trace contains rich state and accurate deltas

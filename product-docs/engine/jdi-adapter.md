@@ -1,62 +1,117 @@
 # JDI Adapter
 
-The JDI (Java Debug Interface) adapter is the language-specific component that captures Java execution.
+The JDI adapter is the Java-specific runtime layer of Tracium Engine.
 
-## What Is JDI?
+It is responsible for turning a live JVM into structured execution data.
 
-JDI is Java's official debugger API, part of the JDK. It provides programmatic access to:
-- Stack frame inspection
-- Local variable reading
-- Object field and array element access
-- Method entry/exit events
-- Line-level step events
-- Exception events
+## What It Contains
 
-## How Tracium Uses JDI
+The Java adapter module currently includes:
 
-### Launch Mode
-```java
-LaunchingConnector connector = Bootstrap.virtualMachineManager().defaultConnector();
-Map<String, Connector.Argument> args = connector.defaultArguments();
-args.get("main").setValue(className);
-args.get("options").setValue("-cp " + classPath);
-VirtualMachine vm = connector.launch(args);
-```
+- `JavaJdiAdapter`
+- `JavaCompiler`
+- `JdiExecutionEngine`
+- `JdiAttachEngine`
+- `JdiForkEngine`
+- `BudgetedStateCapture`
+- `EventRingBuffer`
+- `SandboxPolicy`
 
-### Event Subscription
-```java
-// Step through every line in user code
-StepRequest stepRequest = erm.createStepRequest(
-    thread, StepRequest.STEP_LINE, StepRequest.STEP_INTO
-);
-stepRequest.addClassFilter(className);
-stepRequest.enable();
-```
+## What JDI Gives Tracium
 
-### State Inspection
-```java
-// Read all local variables in a frame
-for (LocalVariable var : frame.visibleVariables()) {
-    Value jdiValue = frame.getValue(var);
-    // Convert to UEF Value type
-}
-```
+JDI provides access to:
+
+- stack frames
+- local variables
+- method entry and exit events
+- step events
+- exceptions
+- object references and fields
+- array elements
+
+That is what makes debugger-grade state capture possible in Java.
+
+## Launch Mode
+
+In launch mode, the adapter:
+
+1. compiles user code
+2. launches a JVM under a JDI connector
+3. captures events
+4. converts state into UEF-compatible models
+
+This is the most complete capture path.
+
+## Attach Mode
+
+In attach mode, the adapter:
+
+1. connects to a running JVM
+2. installs event requests based on strategy
+3. captures bounded state through `BudgetedStateCapture`
+4. produces an observed-mode trace
+
+This is the path used by the attach REST endpoint and the standalone agent.
+
+## Fork Mode
+
+The adapter also supports real re-execution forks through `JdiForkEngine`.
+
+That flow:
+
+- relaunches the code
+- pauses at the fork point
+- injects modified values
+- captures the divergent path
 
 ## Value Conversion
 
-| JDI Type | UEF Value |
-|----------|-----------|
-| `IntegerValue` | `Value.ofInt(v.value())` |
-| `BooleanValue` | `Value.ofBoolean(v.value())` |
-| `StringReference` | `Value.ofString(v.value())` |
-| `ArrayReference` | `Value.ofRef(objectId)` + heap entry |
-| `ObjectReference` | `Value.ofRef(objectId)` + heap entry |
-| `null` | `Value.ofNull()` |
+The adapter maps JDI values into Tracium values such as:
+
+- primitive values
+- null values
+- reference values
+
+Heap objects and arrays are stored separately in the trace heap map.
 
 ## Object Identity
 
-Every JDI `ObjectReference` has a `uniqueID()`. Tracium maps these to stable `obj_1`, `obj_2`, etc. Two references to the same runtime object always resolve to the same ID — aliasing is preserved.
+The adapter preserves runtime identity by mapping JDI object IDs to stable Tracium object IDs like `obj_1`.
 
-## Filtering
+## Budgeted Capture
 
-Only user code is captured. JDK internals (`java.*`, `jdk.*`, `sun.*`) are skipped automatically.
+Attach mode uses:
+
+- `CaptureBudget`
+- `BudgetedStateCapture`
+
+to limit:
+
+- frames
+- object depth
+- object count
+- array elements
+- fields per object
+
+This keeps attach-mode recording bounded on real applications.
+
+## Ring Buffer and High-Throughput Support
+
+The module also includes `EventRingBuffer` for decoupled event receipt and processing in higher-throughput capture scenarios.
+
+This is part of the advanced capture story, but not the default path for all service workflows today.
+
+## Sandbox Policy
+
+Launch-mode execution uses `SandboxPolicy` to control:
+
+- heap size
+- timeout behavior
+- network access
+- file-write access
+
+## Caveats
+
+- Java is the only language adapter today
+- launch mode is the most mature path
+- attach and real fork are real features, but operational hardening is still ongoing

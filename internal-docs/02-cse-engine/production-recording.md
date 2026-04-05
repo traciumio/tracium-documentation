@@ -2,226 +2,203 @@
 
 ## Purpose
 
-This document defines how Tracium Engine attaches to and records execution from running systems, not just sandbox-executed snippets. Production recording is what makes Tracium relevant to backend teams, debugging workflows, and observability use cases.
+This document describes how the current engine records execution from already-running JVMs and how the standalone agent fits into that model.
 
-## Core Principle
+Production recording in this repository is centered on:
 
-> The engine must observe, not just execute. Attaching to real systems is what makes this infrastructure.
+- `AttachController`
+- `AttachRequest`
+- `JdiAttachEngine`
+- `BudgetedStateCapture`
+- `TraciumAgent`
 
-## Two Execution Modes
+## Two Recording Contexts
 
-### Mode 1: Sandbox Execution (Launch Mode)
+### 1. Launch / Sandbox Recording
 
-The engine launches, controls, and terminates the target process.
+The engine launches the target JVM and captures execution under tighter control.
 
-```
-Engine creates JVM -> attaches JDI -> captures -> terminates
-```
+This is the most complete and most deterministic path.
 
-Characteristics:
+### 2. Attach / Observed Recording
 
-- full control over execution
-- deterministic (single-threaded)
-- complete capture (every step)
-- safe (sandboxed environment)
-- limited to snippet-level inputs
+The engine attaches to an already-running JVM through JDI and records selected events with bounded state capture.
 
-This is Phase 1 and the foundation.
+This is the production-oriented path.
 
-### Mode 2: Observed Execution (Attach Mode)
+## Current Entry Points
 
-The engine attaches to an already-running process and records execution.
+The current codebase exposes observed recording in two ways:
 
-```
-Running JVM -> Engine attaches JDI -> captures selectively -> detaches
-```
+### REST Service
 
-Characteristics:
+`POST /v1/sessions/attach`
 
-- no control over execution flow
-- nondeterministic (multi-threaded, real I/O)
-- selective capture (instrumented regions only)
-- requires careful performance management
-- applicable to real services and applications
+### Standalone Agent
 
-This is the mode that makes Tracium production-grade.
+`engine-agent` builds `tracium-agent.jar`, which attaches directly and writes traces to a local TraciumDB directory.
 
-## JDI Attach Mode
+## `AttachRequest`
 
-Java supports JDI in attach mode through:
+The current attach request model contains:
 
-- `AttachingConnector`: connect to a running JVM via socket or shared memory
-- requires target JVM started with debug agent: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005`
+- target host
+- target port
+- transport
+- recording strategy
+- included packages
+- excluded packages
+- execution limits
+- optional correlation ID
+- optional explicit capture budget
 
-### What Attach Mode Provides
+If no explicit budget is supplied, the engine derives one from the selected recording strategy.
 
-- method entry/exit events (filtered by class/package)
-- breakpoint events at specific locations
-- variable inspection at breakpoints
-- stack frame inspection
-- object heap inspection
-- exception events
+## Strategies and Effective Budgets
 
-### What Attach Mode Cannot Provide
+| Strategy | Main Event Style | Recording Context | Effective Budget |
+| --- | --- | --- | --- |
+| `FULL_CAPTURE` | richest capture | `full` | `CaptureBudget.full()` |
+| `METHOD_BOUNDARY` | method entry / exit | `sampled` | `CaptureBudget.production()` |
+| `BREAKPOINT` | targeted capture | `selective` | `CaptureBudget.production()` |
+| `EVENT_FILTER` | minimal exception / event capture | `minimal` | `CaptureBudget.minimal()` |
 
-- complete step-by-step line tracing (too expensive for production)
-- full heap snapshots at every step
-- deterministic ordering in multi-threaded contexts
+## Budgeted Capture
 
-### Mitigation Strategy
+The most important production hardening change in the current engine is budgeted state capture.
 
-Use selective capture:
+`BudgetedStateCapture` applies limits from `CaptureBudget` to:
 
-- instrument only specific packages or classes
-- capture at method boundaries, not line-level
-- take heap snapshots at breakpoints only
-- sample rather than capture exhaustively
+- max frames
+- max object depth
+- max objects per capture
+- max array elements
+- max fields per object
+- excluded framework type prefixes
 
-## Recording Strategies
+This is the core mechanism that makes attach-mode state capture bounded rather than heap-wide.
 
-### Strategy 1: Full Capture
+## Current Attach Flow
 
-- every line step, every variable, every heap change
-- used for: sandbox execution, small programs, learning
-- fidelity: `full`
+Observed recording currently works like this:
 
-### Strategy 2: Method Boundary Capture
+1. connect to the target JVM with `AttachingConnector`
+2. configure event requests based on strategy
+3. capture event-driven snapshots through `BudgetedStateCapture`
+4. build an observed-mode `UefTrace`
+5. store the trace in TraciumDB
 
-- capture method entry/exit with parameter and return values
-- skip line-level stepping
-- used for: production profiling, call graph verification
-- fidelity: `sampled`
+## Standalone Agent
 
-### Strategy 3: Breakpoint Capture
+`engine-agent` provides a non-Spring, CLI-driven recording path.
 
-- capture state only at specific breakpoints (user-defined or auto-placed)
-- full heap snapshot at each breakpoint
-- used for: targeted debugging, "what was the state when this line executed?"
-- fidelity: `selective`
+### Core Components
 
-### Strategy 4: Event Filter Capture
+- `TraciumAgent`
+- `AgentConfig`
 
-- capture only specific event types (exceptions, specific method calls)
-- used for: monitoring, alerting, incident investigation
-- fidelity: `minimal`
+### Current Agent Behavior
 
-## Recording Agent Model
+- parses CLI arguments
+- opens local TraciumDB output
+- attaches to the target JVM
+- records traces
+- auto-reconnects after disconnect or failure
 
-For production use, the engine operates through a lightweight agent:
+### Current CLI Options
 
-```
-[Target JVM]
-    |
-    | JDI socket connection
-    |
-[Tracium Recording Agent]
-    |
-    | UEF stream
-    |
-[Nerva / Trace Store]
-```
+- `--target HOST:PORT`
+- `--packages PKG,PKG`
+- `--exclude PKG,PKG`
+- `--strategy method-boundary|full|breakpoint|event-filter`
+- `--sample-rate N`
+- `--output DIR`
+- `--timeout MS`
+- `--max-steps N`
 
-### Agent Responsibilities
+## Enterprise-Scaling Components in Source
 
-- connect to target JVM via JDI
-- apply configured recording strategy
-- stream captured events as UEF
-- manage connection lifecycle (attach, pause, detach)
-- minimize performance impact on target
+The source tree now includes the following production-scaling components:
 
-### Agent Configuration
+- `CaptureBudget`
+- `BudgetedStateCapture`
+- `EventRingBuffer`
+- `SamplingEngine`
+- `SamplingConfig`
+- `SamplingDecision`
+- `SamplingHeaderCodec`
+- `CircuitBreaker`
+- `AsyncWriteQueue`
+- `RetentionPolicy`
 
-```json
-{
-  "target": {
-    "host": "localhost",
-    "port": 5005,
-    "transport": "dt_socket"
-  },
-  "strategy": "method-boundary",
-  "scope": {
-    "includePackages": ["com.myapp.service", "com.myapp.domain"],
-    "excludePackages": ["com.myapp.generated"],
-    "breakpoints": [
-      { "class": "OrderService", "method": "processOrder", "line": 42 }
-    ]
-  },
-  "limits": {
-    "maxDurationMs": 60000,
-    "maxSteps": 10000,
-    "maxHeapSnapshotSize": "10MB"
-  },
-  "output": {
-    "mode": "stream",
-    "target": "nerva://traces"
-  }
-}
-```
+## Current Wiring Status
 
-## Performance Impact
+### Actively Used
 
-Production recording must have bounded performance impact.
+- attach mode
+- budgeted capture
+- standalone agent
+- TraciumDB persistence
 
-### Overhead Budget
+### Present In Source But Not Yet the Default Service Path
 
-- method boundary capture: less than 5% overhead
-- breakpoint capture: less than 1% overhead (inactive breakpoints are near-zero)
-- full capture: NOT suitable for production (10x+ overhead)
+- `EventRingBuffer`
+- `SamplingEngine` and propagated sampling headers
+- `CircuitBreaker`
+- `AsyncWriteQueue`
+- `RetentionPolicy`
 
-### Safety Mechanisms
+These should be documented as available architecture and implementation pieces, not overstated as fully operational defaults across all capture paths.
 
-- automatic detach if target JVM becomes unresponsive
-- capture rate limiting (max events per second)
-- heap snapshot size limits
-- recording duration limits
-- circuit breaker: if overhead exceeds threshold, reduce capture scope
+## Sampling
+
+The engine now has a dedicated request-level sampling model that supports:
+
+- rate-based sampling
+- error-biased promotion
+- latency-biased promotion
+- adaptive rate adjustment
+- cross-service propagation through `X-Tracium-Sample`
+
+This is implemented in `engine-core`, but the default service and agent attach flows do not yet expose a fully wired request-sampling control plane.
+
+## Circuit Breaking
+
+`CircuitBreaker` provides automatic degradation across capture levels:
+
+- `FULL`
+- `METHOD_BOUNDARY`
+- `EVENT_FILTER`
+- `OFF`
+
+It maps capture level to effective capture budget, but it is not yet connected to a continuously running monitoring loop in `engine-service`.
+
+## Async Storage and Retention
+
+The storage layer contains:
+
+- `AsyncWriteQueue` for non-blocking batched writes
+- `RetentionPolicy` for deleting old traces while preserving exceptions
+
+Current note:
+
+- these are available in `engine-core`
+- `SessionStore` still uses synchronous `db.put(...)` today
 
 ## Recording Context in UEF
 
-Every trace from observed execution includes recording context:
+Attach-produced traces include observed recording metadata, including:
 
-```json
-{
-  "recordingMode": "observed",
-  "captureFidelity": "sampled",
-  "samplingStrategy": "method-boundary",
-  "scope": {
-    "includedPackages": ["com.myapp.service"],
-    "breakpointCount": 3
-  },
-  "targetProcess": {
-    "pid": 12345,
-    "jvmVersion": "21.0.1",
-    "startedAt": "2026-04-04T08:00:00Z"
-  },
-  "environment": "staging"
-}
-```
+- `mode = observed`
+- fidelity derived from strategy
+- sampling strategy name
+- environment set to `production`
 
-This context is critical for:
+This metadata is important for consumers because attach traces may be selective and budgeted.
 
-- understanding what was captured vs. what was missed
-- comparing traces with different fidelity levels
-- AI explanation accuracy (knowing capture limitations)
+## Operational Caveats
 
-## Future Language Agents
-
-The attach model extends to other languages:
-
-| Language | Attach Mechanism |
-|----------|-----------------|
-| Java | JDI AttachingConnector |
-| Python | debugpy attach, sys.monitoring |
-| JavaScript | Chrome DevTools Protocol (CDP) remote attach |
-| C++ | LLDB/GDB remote attach |
-
-Each language adapter implements both launch mode and attach mode through the same `LanguageExecutionAdapter` interface, with capability declaration for what each mode supports.
-
-## What This Enables
-
-- debug production issues by recording the exact execution path
-- replay incidents from staging or production traces
-- understand real system behavior, not just toy examples
-- capture execution during load tests for performance analysis
-- record test execution in CI/CD for regression analysis
-- onboard new developers by showing them real execution of the system they are joining
+- attach mode depends on the target JVM already exposing JDWP
+- attach capture is bounded and intentionally partial in production-oriented strategies
+- sampling, circuit breaking, and async persistence are not yet the default end-to-end path
+- attach mode is real code and exposed in product APIs, but the sandbox launch path remains the most mature execution path

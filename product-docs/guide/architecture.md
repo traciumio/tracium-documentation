@@ -1,47 +1,98 @@
 # Architecture
 
-Tracium is an ecosystem of cooperating products, not a single application.
+This guide focuses on the architecture of the current Tracium Engine repository.
 
-## System Diagram
+## Repository Structure
 
-```
-  Prism (UI)     Pulse (IDE)     Vector (SDK)
-       \              |              /
-        \             |             /
-         +---- Nerva (API) -------+
-               /           \
-              /             \
-    Tracium Engine        Atlas
-    (execution)        (static analysis)
-              \             /
-               \           /
-            Quanta (shared contracts)
+```text
+tracium-engine/
+  engine-core/
+  engine-java-jdi-adapter/
+  engine-service/
+  engine-agent/
 ```
 
-## Products
+## Module Responsibilities
 
-| Product | Purpose | Tech |
-|---------|---------|------|
-| **Tracium Engine** | Execution recording | Java 26, JDI, Spring Boot |
-| **Nerva** | Orchestration + trace store | TypeScript, Fastify |
-| **Prism** | Visualization | React, TypeScript |
-| **Atlas** | Repository analysis | Java, AST parsing |
-| **Vector** | Client SDK | TypeScript |
-| **Pulse** | IDE plugin | VS Code Extension API |
-| **Quanta** | Shared schemas | JSON Schema |
+### `engine-core`
 
-## Data Flow
+Owns:
 
-1. Client submits code to **Nerva** (port 4000)
-2. Nerva forwards to **Tracium Engine** (port 8080)
-3. Engine compiles, executes via JDI, captures state
-4. Engine returns UEF trace
-5. Nerva **persists trace to disk** and returns result
-6. Consumers (Prism, Pulse, Vector) query persisted traces from Nerva
+- UEF models
+- state model
+- time machine
+- diffing
+- AI helpers
+- causality
+- simulation
+- distributed assembly helpers
+- TraciumDB
 
-## Key Rules
+### `engine-java-jdi-adapter`
 
-1. **Engine is headless** — no UI, produces data only
-2. **Traces are persistent** — stored on disk, queryable
-3. **Contracts are sacred** — UEF is the shared language
-4. **Consumers are independent** — Prism, Pulse, Vector can evolve separately
+Owns:
+
+- Java compilation
+- JDI launch capture
+- JDI attach capture
+- JDI fork execution
+- budgeted capture
+- sandbox policy
+
+### `engine-service`
+
+Owns:
+
+- REST API
+- SSE streaming
+- TraciumDB-backed session storage
+- embedded UI
+- auth, metrics, swagger
+
+### `engine-agent`
+
+Owns:
+
+- standalone CLI attach mode
+- reconnect loop
+- local TraciumDB output
+
+## Runtime Flow
+
+```text
+Client / UI / curl
+  -> engine-service
+    -> engine-core contracts
+    -> Java JDI adapter
+      -> captured UEF trace
+        -> TraciumDB
+          -> APIs, UI, time machine, diffing, AI
+```
+
+## Storage Model
+
+The engine persists locally through TraciumDB.
+
+That means the engine is not dependent on Nerva or any external database to store its own sessions in this repository.
+
+## UI Model
+
+The engine serves an embedded UI from the same Spring Boot service that exposes the API.
+
+So the current repository is:
+
+- still API-first
+- still usable without the UI
+- but no longer "headless only" in the practical deployment sense
+
+## Advanced Architecture Pieces
+
+The codebase also contains:
+
+- sampling support
+- circuit-breaker support
+- async write support
+- retention support
+- ring-buffer support
+
+These are part of the architecture even where the default service path still uses simpler wiring.

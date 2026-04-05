@@ -2,170 +2,194 @@
 
 ## Role
 
-The state engine is the core intellectual center of `CSE`.
+The state engine turns raw runtime information into a stable, serializable model of execution state.
 
-Its job is to transform raw runtime signals into a clean, consistent model of program state.
+In the current repository, this logic lives mostly in `engine-core` and is populated by the JDI adapter.
 
-This is where the engine becomes more than a debugger hook.
+## Core Model
 
-## Core Responsibilities
+The current state model is built from these types:
 
-The state engine must:
+- `ExecutionState`
+- `StackFrame`
+- `HeapObject`
+- `Value`
+- `StateDelta`
+- `EventType`
+- `SourceAnchor`
+- `RecordingContext`
+- `CorrelationContext`
+- `Diagnostic`
 
-- model stack frames
-- model heap objects
-- preserve object identity
-- represent references explicitly
-- normalize primitive and composite values
-- classify runtime events
-- attach source anchors and metadata
+## Current `ExecutionState`
 
-## Truth-First State Model
+`ExecutionState` contains:
 
-The state engine should represent program truth, not a teaching abstraction.
+- `frames`
+- `heap`
+- `globals`
+- `stdout`
+- `stderr`
 
-That means:
+This matters because the current engine is not only recording variables and heap changes. It also carries process output streams into the state model.
 
-- aliasing must be visible
-- the same object referenced by two variables must remain one object
-- nullability must be explicit
-- frame boundaries must be preserved
+## Frames
 
-Educational or simplified views can be derived later, but not stored as the primary engine truth.
-
-## Normalized Concepts
-
-### Frames
-
-A frame represents a callable execution context.
-
-Minimum fields:
+Each `StackFrame` currently records:
 
 - frame ID
-- function or method name
+- method / function name
+- declaring type
 - source anchor
-- local variables
+- locals
 - parameters
-- return target metadata
+- status
 
-### Values
+Frame status is used to distinguish active and returned frames.
 
-Values should be normalized into categories:
+## Values
 
-- primitive
-- null
-- reference
-- collection
-- array
-- object
-- enum or symbolic value
+The normalized `Value` model supports:
 
-### Heap Entities
+- primitive values
+- null values
+- reference values
+- inline object values
+- inline array values
+- symbolic values
 
-Heap entities represent allocated identity-bearing runtime objects.
+The adapter most often uses primitive, null, and reference values for persisted execution state, while object and array structure is represented in the heap map.
 
-Minimum fields:
+## Heap Entities
 
-- object ID
-- runtime type
-- fields or elements
-- ownership or reference metadata
+The current heap model supports:
 
-### References
+- `HeapObject.ObjectInstance`
+- `HeapObject.ArrayInstance`
 
-References are not visual hints. They are actual links between state elements.
+References in stack frames point to stable object IDs in the heap map.
 
-Every reference should:
+## Truth-First Rules
 
-- point to a stable object ID
-- preserve shared identity
-- allow traversal from frame to heap and between heap objects
+The engine treats these rules as mandatory:
 
-## Snapshot vs Delta Strategy
+- aliasing must remain visible
+- null must remain explicit
+- stack frames must remain distinct
+- object identity must stay stable within a session
+- source anchors must preserve where capture occurred
 
-The engine should internally support both:
+Consumers may simplify the view, but they should never need to reconstruct truth that the engine failed to record.
 
-- `delta events`: what changed at this step
-- `materialized views`: what the full state looks like at this step
+## Snapshot and Delta Semantics
 
-Recommended approach:
+Each step can carry both:
 
-- store event deltas for efficiency
-- create checkpoints at intervals
-- generate full state views on demand
+- a full materialized state snapshot
+- a `StateDelta` showing what changed at that step
 
-## Object Identity Rules
+`StateDelta` currently contains:
 
-These rules are mandatory:
+- frame changes
+- heap changes
 
-- object IDs remain stable within a session
-- two references to the same runtime object must share the same object ID
-- destroyed or out-of-scope bindings do not destroy heap identity immediately unless runtime semantics require it
+This dual model is important because:
 
-## Event Categories
+- UI replay prefers snapshots
+- query and comparison engines benefit from deltas
+- root-cause and fork reasoning often uses both
 
-Core event categories should include:
+## Event Classification
 
-- session started
-- line changed
-- method entered
-- method exited
-- variable assigned
-- object allocated
-- field updated
-- array element updated
-- exception thrown
-- exception caught
-- session finished
+The current event taxonomy includes:
 
-## Derived Semantic Layers
+- `SESSION_STARTED`
+- `SESSION_FINISHED`
+- `METHOD_ENTERED`
+- `METHOD_EXITED`
+- `VARIABLE_ASSIGNED`
+- `OBJECT_ALLOCATED`
+- `FIELD_UPDATED`
+- `ARRAY_ELEMENT_UPDATED`
+- `EXCEPTION_THROWN`
+- `EXCEPTION_CAUGHT`
+- `LINE_CHANGED`
+- output-related events in the model, even if not all producers emit them yet
 
-The state engine may later derive higher-level semantic hints from raw events.
+## Object Identity
 
-Examples:
+The Java adapter maps JDI object identity to stable Tracium object IDs such as `obj_1`, `obj_2`, and so on.
 
-- array swap
-- linked-list insertion
-- recursion expansion
-- map put
+There are two relevant identity paths today:
 
-These should be additive metadata, not replacements for low-level truth.
+- `JdiExecutionEngine` uses an LRU-backed object ID map for sandbox capture
+- `BudgetedStateCapture` uses a bounded LRU object map for attach capture
 
-## Persistence-Aware Design
+That identity preservation is required for:
 
-The state engine must produce output suitable for durable storage, not just ephemeral visualization:
+- heap mutation tracking
+- aliasing visibility
+- AI object-focused views
+- causality and simulation helpers
 
-- all state must be serializable to JSON without loss
-- object IDs must be stable and reusable across persistence boundaries
-- checkpoints must be independently loadable (not dependent on replaying from step 0)
-- deltas must be self-describing (include enough context to understand the change without full state)
+## Capture Budgets and Truncation
 
-This enables:
+Production recording no longer assumes unbounded heap capture.
 
-- efficient trace storage (deltas + periodic checkpoints)
-- partial trace loading (jump to any checkpoint without loading entire trace)
-- trace querying (find steps where specific variables have specific values)
-- AI windowing (load relevant segments without full trace)
+`CaptureBudget` and `BudgetedStateCapture` add explicit caps for:
 
-## Queryable State Model
+- max stack frames
+- max object depth
+- max objects per capture
+- max array elements
+- max fields per object
+- excluded type prefixes
 
-The state model must support future querying operations:
+This lets the engine record real applications without trying to walk the entire heap every time.
 
-- find all steps where variable X was assigned
-- find all steps where object Y was modified
-- find all steps within method Z
-- find the state at step N without loading steps 1 through N-1
+Important consequence: attach-mode snapshots may be intentionally partial, but they should still be well-formed.
 
-These queries are served by the trace store (Nerva), but the state engine must produce data structured to support them.
+## Queryability
 
-## Engine Outputs
+The state model is designed to support:
 
-The state engine emits normalized data that the timeline engine can order and serialize into `UEF`.
+- find steps where a variable exists
+- find steps where a variable equals a value
+- find steps within a method
+- find steps by event type
+- find branches where a condition becomes true
 
-The final consumer should not need debugger-specific runtime knowledge to understand the state.
+Those operations are powered by:
 
-Outputs flow to multiple destinations simultaneously:
+- `ExecutionTimeline` over a single trace
+- `TraciumDB` indexes across many traces
 
-- timeline engine (for ordering and serialization)
-- event stream (for real-time delivery to live consumers)
-- trace store (for persistence and querying)
+## Persistence
+
+The current persistence story is:
+
+- state and deltas are serialized into UEF
+- UEF traces are stored in TraciumDB
+- metadata, step content, and fork relations are indexed separately
+
+This is no longer a generic external trace-store concept. The engine repository owns the embedded persistence path directly.
+
+## Consumers
+
+The state engine feeds:
+
+- time-machine features
+- diffing
+- causality helpers
+- simulation helpers
+- AI compression and narrative helpers
+- SSE streaming payload generation
+- TraciumDB indexing
+- the embedded UI
+
+## Caveats
+
+- Launch-mode capture is the most complete path
+- Attach-mode capture is intentionally budgeted
+- The core model includes more concepts than every producer currently emits
+- Some advanced analysis layers are heuristic and should be documented as such rather than treated as bytecode-precise program analysis

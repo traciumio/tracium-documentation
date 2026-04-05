@@ -2,213 +2,98 @@
 
 ## Purpose
 
-This document defines how AI systems (LLMs, reasoning engines, code assistants) consume UEF traces as a first-class use case. AI reasoning over real execution state, not just static code, is the highest-leverage long-term capability of the platform.
+This document covers the AI-facing trace utilities that currently exist in the engine.
 
-## Core Principle
+Important framing:
 
-> Today AI sees static code. With Tracium, AI sees execution: what actually happened, step by step, with real state. This is a fundamental capability unlock.
+- the engine does not ship an external LLM runtime by itself
+- the current AI layer is a deterministic trace-transformation layer
+- its job is to make execution traces easier for AI systems and human consumers to use
 
-## Why This Matters
+## Current Components
 
-### What AI has today
+The current AI layer in `engine-core` contains:
 
-- source code (static text)
-- documentation (human-written, often outdated)
-- error messages (partial, lossy)
-- logs (unstructured, sampled)
+- `TraceCompressor`
+- `TraceFocuser`
+- `NaturalLanguageConverter`
+- `SummarizationLevel`
 
-### What Tracium gives AI
+The current REST surface is owned by `AiConsumptionController`.
 
-- complete execution trace (structured, ordered)
-- variable state at every step (precise, machine-readable)
-- heap object relationships (graph-structured)
-- control flow path (actual, not inferred)
-- deltas (what changed and when)
+## Current Endpoints
 
-This transforms AI code understanding from "guess from static text" to "reason from actual execution."
+- `POST /v1/sessions/runtime/{sessionId}/ai/summarize`
+- `POST /v1/sessions/runtime/{sessionId}/ai/focus`
+- `POST /v1/sessions/runtime/{sessionId}/ai/explain`
+- `GET /v1/sessions/runtime/{sessionId}/ai/narrative`
 
-## AI Consumption Challenges
+There is no general `/ask` endpoint in the current engine-service.
 
-### Challenge 1: Trace Size vs Context Window
+## Summarization
 
-A UEF trace can have thousands of steps. An LLM context window is finite.
+`TraceCompressor` supports these levels:
 
-### Challenge 2: State Complexity
+- `STEP_LEVEL`
+- `METHOD_LEVEL`
+- `PHASE_LEVEL`
+- `KEY_EVENTS_ONLY`
 
-Full heap snapshots at every step contain noise that is irrelevant to most questions.
+The output is a compressed trace made of structured segments rather than raw UEF steps.
 
-### Challenge 3: Relevance
+This is useful for:
 
-Most AI queries care about a specific aspect of execution, not the entire trace.
+- LLM context reduction
+- UI summaries
+- quick execution review
 
-## Solutions: AI-Friendly Trace Representations
+## Focused Views
 
-### 1. Trace Summarization
+`TraceFocuser` currently supports:
 
-Collapse step ranges into semantic summaries:
+- variable-focused views
+- method-focused views
+- exception-focused views
+- object-focused views
 
-```json
-{
-  "type": "summary",
-  "stepRange": [1, 15],
-  "description": "Initializes array with 5 elements and enters sort method",
-  "keyEvents": ["OBJECT_ALLOCATED", "METHOD_ENTERED"],
-  "keyState": {
-    "arr": "[5, 3, 8, 1, 2]",
-    "method": "sort()"
-  }
-}
-```
+This is useful when the caller only cares about a narrow slice of the execution.
 
-Summarization levels:
+## Natural Language Conversion
 
-- `step-level`: every step (full detail, maximum context cost)
-- `method-level`: one summary per method call (balanced)
-- `phase-level`: algorithmic phases (compact, highest abstraction)
-- `key-events-only`: only exceptions, allocations, method entries (minimal)
+`NaturalLanguageConverter` supports:
 
-### 2. Trace Segmentation
+- per-step conversion
+- step-range conversion
+- full-trace narrative summaries
 
-Divide traces into context-window-sized segments with overlap:
+This is currently deterministic text generation from trace structure, not a generative model call.
 
-```json
-{
-  "traceId": "sess_001",
-  "totalSegments": 5,
-  "segment": 2,
-  "stepRange": [20, 40],
-  "overlapSteps": 3,
-  "context": {
-    "activeMethod": "sort()",
-    "activeVariables": { "i": 1, "j": 2, "arr": "-> obj_1" },
-    "callStack": ["main()", "sort()"]
-  }
-}
-```
+## Current Explain Behavior
 
-Each segment includes enough context to be understood independently.
+`/ai/explain` currently accepts a step range and returns a natural-language description of that range.
 
-### 3. Focused Trace Views
+It does not currently:
 
-Extract only the parts relevant to a specific question:
+- answer arbitrary questions
+- perform retrieval against external sources
+- run a hosted model
 
-- `variable-focused`: all steps where a specific variable changes
-- `method-focused`: all steps within a specific method (including recursive calls)
-- `exception-focused`: the step sequence leading to an exception
-- `object-focused`: all steps involving a specific heap object
+## Grounding
 
-### 4. Natural Language Trace Representation
+The current AI layer is grounded directly in recorded execution state.
 
-Convert UEF steps into natural language for direct LLM consumption:
+That means:
 
-```
-Step 7: In method sort(), line 6: Comparing arr[0]=5 with arr[1]=3. 
-        Since 5 > 3, entering swap branch.
-Step 8: In method sort(), line 7: Created temp variable tmp = 5
-Step 9: In method sort(), line 8: Set arr[0] = 3 (was 5)
-Step 10: In method sort(), line 9: Set arr[1] = 5 (was 3). 
-         Array is now [3, 5, 8, 1, 2]
-```
+- it only transforms captured trace data
+- it should respect capture fidelity and missing data
+- it should not invent steps that are not present
 
-This is a lossy but LLM-optimized representation.
+## Relationship to the UI
 
-## AI API Endpoints
+The embedded UI exposes these helpers under the AI Studio concept, but the underlying capability is still the engine's trace-transformation layer.
 
-### Summarize Trace
+## Caveats
 
-```
-POST /v1/sessions/{id}/ai/summarize
-{
-  "level": "method-level",
-  "maxTokens": 2000
-}
-```
-
-Returns: natural language summary or structured summary objects.
-
-### Focus Trace
-
-```
-POST /v1/sessions/{id}/ai/focus
-{
-  "focusType": "variable",
-  "target": "result",
-  "includeContext": true
-}
-```
-
-Returns: filtered step sequence relevant to the target.
-
-### Explain Step
-
-```
-POST /v1/sessions/{id}/ai/explain
-{
-  "step": 12,
-  "contextSteps": 5,
-  "question": "Why did this variable become negative?"
-}
-```
-
-Returns: AI-generated explanation grounded in actual execution data.
-
-### Ask About Trace
-
-```
-POST /v1/sessions/{id}/ai/ask
-{
-  "question": "What is the time complexity of this execution?",
-  "includeTrace": "method-level-summary"
-}
-```
-
-Returns: AI-generated answer with references to specific steps.
-
-## Grounding Rules
-
-AI explanations MUST be grounded in actual execution data:
-
-- never hallucinate steps that did not occur
-- always reference actual step numbers and values
-- explicitly state when capture was incomplete (fidelity < full)
-- distinguish between "the trace shows X" and "this likely means Y"
-
-## AI Training Data
-
-Persisted UEF traces become training data for:
-
-- code explanation models (trace -> natural language)
-- bug detection models (trace patterns -> defect likelihood)
-- performance models (trace metrics -> optimization suggestions)
-- auto-documentation (trace + code -> behavioral documentation)
-
-### Training Data Pipeline
-
-```
-Trace Store -> Export API -> Filter/Anonymize -> Training Dataset
-```
-
-Requirements:
-
-- traces must be exportable in bulk
-- PII and sensitive data must be filterable
-- export format must be standardized for ML pipelines
-
-## Relationship to Phase 8 (Intelligence Layer)
-
-This document defines the data model and API. Phase 8 implements the intelligence:
-
-- semantic event enrichment (pattern recognition)
-- LLM-powered explanations (natural language generation)
-- runtime + architecture cross-correlation
-- interactive Q&A
-
-The AI consumption model ensures that Phase 8 has the right data substrate to build on.
-
-## What This Enables
-
-- AI debugging assistant: "explain why this request failed" with actual execution context
-- code review with execution context: "this change causes 3 new execution paths"
-- automated incident explanation: traces fed to LLM produce human-readable incident reports
-- educational AI: students ask questions about execution and get answers grounded in real state
-- execution-aware code generation: AI sees how code actually runs, not just how it reads
+- output quality is bounded by trace quality and capture fidelity
+- these helpers are strongest for compact traces and focused analysis
+- this is not yet a full conversational AI system over traces

@@ -1,52 +1,112 @@
 # How the Engine Works
 
-## Pipeline
+## Core Pipeline
 
-```
-Source Code → Compile → Launch JVM → Attach JDI → Step → Capture → Normalize → UEF
-```
+At a high level, the engine works like this:
 
-### 1. Compile
-Uses `javax.tools.JavaCompiler` to compile source code to `.class` files in a temp directory.
+`Request -> Execute or Attach -> Capture -> Normalize -> Persist -> Analyze or Stream`
 
-### 2. Launch
-Creates a new JVM process via JDI `LaunchingConnector`. The JVM starts with the debugger attached from the beginning.
+## Sandbox Execution Flow
 
-### 3. Attach JDI Events
-Subscribes to:
-- `ClassPrepareEvent` — know when user class is loaded
-- `StepEvent` — line-by-line stepping
-- `MethodEntryEvent` / `MethodExitEvent` — track call stack
-- `ExceptionEvent` — capture thrown exceptions
+### 1. Receive a Runtime Request
 
-### 4. Capture State
-At every step, the engine inspects:
-- All stack frames via `ThreadReference.frames()`
-- Local variables via `StackFrame.visibleVariables()`
-- Object fields via `ObjectReference.getValue()`
-- Array elements via `ArrayReference.getValues()`
+`RuntimeController` accepts:
 
-### 5. Normalize
-Raw JDI types are converted to UEF value kinds:
-- `IntegerValue` → `{ "kind": "primitive", "type": "int", "value": 42 }`
-- `ArrayReference` → stored in heap as `HeapObject.ArrayInstance`
-- `ObjectReference` → stored in heap as `HeapObject.ObjectInstance`
-- `null` → `{ "kind": "null" }`
+- language
+- entrypoint
+- code
+- execution limits
 
-### 6. Compute Deltas
-Previous state is compared to current state:
-- New locals → `FrameChange` with `before: null`
-- Changed locals → `FrameChange` with before/after values
-- Changed fields → `HeapChange` with object ID and path
-- New heap objects → classified as `OBJECT_ALLOCATED`
+### 2. Compile Java Code
 
-### 7. Classify Event
-Based on what changed:
-- New heap objects → `OBJECT_ALLOCATED`
-- Changed fields → `FIELD_UPDATED`
-- Changed array elements → `ARRAY_ELEMENT_UPDATED`
-- Changed locals → `VARIABLE_ASSIGNED`
-- Nothing changed → `LINE_CHANGED`
+`JavaJdiAdapter` uses `JavaCompiler` to compile the submitted source into temporary class files.
 
-### 8. Serialize UEF
-Complete trace assembled with session metadata, recording context, all steps, and diagnostics. Serialized to JSON via custom Jackson serializers.
+### 3. Launch a JVM Under JDI
+
+`JdiExecutionEngine` starts a JVM with JDI attached and with sandbox-oriented limits applied through `SandboxPolicy`.
+
+### 4. Subscribe to Runtime Events
+
+The engine captures events such as:
+
+- class preparation
+- line steps
+- method entry
+- method exit
+- exceptions
+
+### 5. Capture and Normalize State
+
+For each relevant event, the adapter converts runtime state into:
+
+- stack frames
+- heap objects
+- reference identities
+- source anchors
+- state deltas
+
+### 6. Assemble a UEF Trace
+
+The final execution becomes a `UefTrace` containing:
+
+- session metadata
+- recording metadata
+- correlation metadata
+- ordered steps
+- diagnostics
+
+### 7. Persist to TraciumDB
+
+`SessionStore` persists the completed trace to the embedded storage engine.
+
+## Streaming Flow
+
+If you call the runtime streaming endpoint:
+
+1. the service creates a session ID immediately
+2. execution runs asynchronously
+3. each captured step is forwarded to a `StepListener`
+4. `StreamingController` emits SSE messages
+5. the completed trace is stored in TraciumDB
+
+## Attach Flow
+
+Attach mode uses a different path:
+
+1. connect to a running JVM
+2. apply a recording strategy
+3. capture bounded state with `BudgetedStateCapture`
+4. build an observed-mode UEF trace
+5. persist the result in TraciumDB
+
+## Fork Flow
+
+The engine supports two fork styles:
+
+- predictive fork over an existing trace through `TimelineFork`
+- real re-execution fork through `JdiForkEngine`
+
+## Analysis Flow
+
+Once a trace exists, the engine can:
+
+- query it through the time machine
+- locate root causes
+- compare traces
+- compress and narrate traces for AI consumers
+- build causality and simulation views
+- browse and search stored sessions through TraciumDB
+
+## Advanced Components
+
+The repository also includes:
+
+- capture budgets
+- ring buffer support
+- sampling support
+- circuit breaker support
+- async storage support
+- retention-policy support
+- standalone agent support
+
+These are part of the engine story, but not every one of them is yet the default service path.

@@ -1,12 +1,24 @@
 # Getting Started
 
-Get a working trace in 2 minutes.
+This guide gets you from zero to a stored execution trace.
 
 ## Prerequisites
 
-- **Java 21+** (JDK, not JRE — JDI requires a JDK)
+- JDK 26 recommended
+- a JDK, not just a JRE
 
-That's it. No database, no Node.js, no Docker required.
+Why JDK:
+
+- the Gradle toolchain targets Java 26
+- JDI requires JDK debugging support
+- runtime compilation uses Java compiler APIs
+
+You do not need:
+
+- PostgreSQL
+- MongoDB
+- Redis
+- Docker
 
 ## 1. Start the Engine
 
@@ -15,24 +27,31 @@ cd tracium-engine
 ./gradlew :engine-service:bootRun
 ```
 
-Engine starts on `http://localhost:8080` with:
-- Engine Explorer UI (visual interface)
-- REST API (30+ endpoints)
-- TraciumDB (embedded storage)
-- Swagger UI (API docs)
+The service starts on:
+
+`http://localhost:8080`
 
 ## 2. Open the UI
 
-Go to `http://localhost:8080` in your browser.
+Open:
 
-You'll see the Engine Explorer with 8 tabs:
-Execute | Trace Viewer | Time Machine | AI Studio | Causality | Simulation | Diff Lab | TraciumDB
+`http://localhost:8080`
 
-## 3. Execute Your First Trace
+You get:
 
-In the **Execute** tab, you'll see sample code (factorial). Click **Execute**.
+- embedded UI
+- REST API
+- Swagger UI
+- TraciumDB-backed persistence
 
-Or via curl:
+## 3. Check Health
+
+```bash
+curl http://localhost:8080/v1/sessions/runtime/health
+```
+
+## 4. Run Your First Trace
+
 ```bash
 curl -X POST http://localhost:8080/v1/sessions/runtime \
   -H "Content-Type: application/json" \
@@ -40,68 +59,139 @@ curl -X POST http://localhost:8080/v1/sessions/runtime \
     "language": "java",
     "entrypoint": "Main.main",
     "code": "public class Main {\n  public static void main(String[] args) {\n    int x = 5;\n    int y = x * 2;\n    System.out.println(y);\n  }\n}",
-    "limits": { "timeoutMs": 5000, "maxSteps": 100 }
+    "limits": {
+      "timeoutMs": 5000,
+      "maxSteps": 100,
+      "maxHeapMb": 64,
+      "allowNetwork": false,
+      "allowFileWrite": false
+    }
   }'
 ```
 
 Response:
+
 ```json
-{ "sessionId": "sess_abc12345", "status": "COMPLETED", "totalSteps": 8 }
+{ "sessionId": "sess_runtime_ab12cd34", "status": "COMPLETED", "totalSteps": 8 }
 ```
 
-## 4. Explore the Trace
+## 5. View the Trace
 
-The UI automatically switches to the **Trace Viewer** tab. You can:
-- Step forward/backward through execution
-- See stack frames and local variables at each step
-- See what changed (deltas) at each step
-- See heap objects and references
-- See stdout output
-
-Or via API:
 ```bash
 curl http://localhost:8080/v1/sessions/runtime/{sessionId}/trace
 ```
 
-## 5. Use the Time Machine
+Or use the embedded UI to inspect:
 
-Go to the **Time Machine** tab. Try:
+- frames
+- locals
+- heap
+- deltas
+- stdout
 
-**Root Cause:** Enter `y` and step `6` → see the chain of assignments that produced y's value.
+## 6. Try Time Machine Features
 
-**Execution Query:** Enter variable `x` → find every step where x exists.
+Examples:
 
-**Fork:** Enter step `3`, variable `x`, value `0` → see what would change if x was 0 instead of 5.
+- root cause: variable `y`, step `6`
+- query: `?variable=x`
+- predictive fork: set `x = 0`
+- real fork: re-execute with modified state
 
-## 6. Try AI Studio
+## 7. Try AI and Diffing
 
-Go to the **AI Studio** tab. Click **method-level** → get a compressed summary of the trace suitable for feeding to an LLM.
+Useful endpoints:
 
-Click **Generate Narrative** → get a human-readable story of the execution.
+- `/ai/summarize`
+- `/ai/focus`
+- `/ai/explain`
+- `/ai/narrative`
+- `/v1/comparisons`
 
-## 7. Check TraciumDB
+## 8. Explore TraciumDB
 
-Go to the **TraciumDB** tab. Click **Load Stats** → see how many sessions are stored, disk usage.
+Browse storage through:
 
-Click **Latest 20** → browse all your stored executions.
+- UI TraciumDB section
+- `/v1/db/stats`
+- `/v1/db/sessions`
+- `/v1/db/search`
 
-Your traces are persisted at `./data/traciumdb/traces/` — plain JSON files you can open in any editor.
+Stored traces live under:
 
-## What Just Happened?
+`./data/traciumdb/`
 
-1. You sent Java source code to the engine
-2. Engine compiled it with javac
-3. Engine launched a sandboxed JVM with JDI (Java Debug Interface) attached
-4. JDI stepped through every line, capturing full state (variables, heap, stack)
-5. Engine produced a UEF (Universal Execution Format) trace
-6. TraciumDB persisted the trace to disk as an immutable JSON file
-7. The trace is now queryable, replayable, forkable, and diffable
+## 9. Try Live Streaming
+
+Start a streaming session:
+
+```bash
+curl -X POST http://localhost:8080/v1/sessions/runtime/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "language": "java",
+    "entrypoint": "Main.main",
+    "code": "public class Main { public static void main(String[] args) { int x = 1; } }",
+    "limits": { "timeoutMs": 5000, "maxSteps": 100 }
+  }'
+```
+
+Then open:
+
+`GET /v1/sessions/runtime/{sessionId}/stream`
+
+## 10. Optional: Try Attach Mode
+
+Start a target JVM with JDWP enabled:
+
+```bash
+java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -jar myapp.jar
+```
+
+Then attach:
+
+```bash
+curl -X POST http://localhost:8080/v1/sessions/attach \
+  -H "Content-Type: application/json" \
+  -d '{
+    "host": "localhost",
+    "port": 5005,
+    "strategy": "method-boundary",
+    "includePackages": ["com.myapp.service"]
+  }'
+```
+
+## 11. Optional: Use the Standalone Agent
+
+Build the agent and run:
+
+```bash
+cd tracium-engine
+./gradlew :engine-agent:jar
+java -jar engine-agent/build/libs/tracium-agent.jar \
+  --target localhost:5005 \
+  --packages com.myapp.service \
+  --strategy method-boundary \
+  --sample-rate 100 \
+  --output ./traces
+```
+
+## What Just Happened
+
+When you run a runtime session:
+
+1. the engine compiles your Java code
+2. it launches a JVM under JDI
+3. it captures steps, state, and deltas
+4. it assembles a UEF trace
+5. it persists the trace in TraciumDB
+6. it exposes the stored trace to APIs, the UI, and analysis features
 
 ## Next Steps
 
-- [Execution as Data](/guide/execution-as-data) — Understand the core concept
-- [UEF Format](/guide/uef) — What's inside a trace
-- [REST API](/api/rest-api) — Full API reference (30+ endpoints)
-- [Engine Internals](/engine/overview) — Architecture and modules
-- [TraciumDB](/engine/traciumdb) — How storage works
-- **Swagger UI** — Open `http://localhost:8080/swagger-ui.html` for interactive API docs
+- [Engine Overview](/engine/overview)
+- [How the Engine Works](/engine/how-it-works)
+- [Configuration](/engine/configuration)
+- [Recording Modes](/guide/recording-modes)
+- [TraciumDB](/engine/traciumdb)
+- [REST API](/api/rest-api)

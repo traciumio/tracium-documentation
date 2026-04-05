@@ -2,174 +2,180 @@
 
 ## Purpose
 
-This document defines how execution events flow in real-time from the engine to consumers during capture. Streaming is what makes Tracium usable for live debugging, real-time monitoring, and progressive loading, not just post-hoc analysis.
+This document describes the streaming model that currently exists in the Tracium Engine repository, not an aspirational transport design.
 
-## Core Principle
+Today the engine exposes live execution streaming for sandbox runtime sessions through SSE.
 
-> Execution is a stream. Consumers can subscribe to it live, not just download it after the fact.
+## Current Scope
 
-## Two Delivery Modes
+The active streaming path is owned by `engine-service` and uses:
 
-### Batch Mode
+- `StreamingController`
+- `StepListener`
+- `JavaJdiAdapter.execute(..., sessionId, listener)`
+- `JdiExecutionEngine.emitToListener(...)`
+- Spring `SseEmitter`
 
-The trace is produced first, then consumed.
+There is no public WebSocket streaming API in the current service.
 
-Flow:
+## Public Endpoints
 
+The current runtime streaming endpoints are:
+
+- `POST /v1/sessions/runtime/stream`
+- `GET /v1/sessions/runtime/{sessionId}/stream`
+
+The first endpoint starts execution asynchronously and returns a session ID plus stream URL. The second endpoint opens the SSE channel.
+
+## Delivery Model
+
+The current stream is one-way and server-driven:
+
+- execution starts in the background
+- steps are emitted as they are captured
+- the client receives SSE events
+- the full trace is persisted after execution completes
+
+This is live step delivery, but persistence still happens as a final session write.
+
+## Event Types
+
+The current SSE channel emits these event names:
+
+- `connected`
+- `step`
+- `complete`
+- `error`
+
+### `connected`
+
+Sent when the emitter is established.
+
+Example payload:
+
+```json
+{ "type": "connected", "sessionId": "sess_stream_ab12cd34" }
 ```
-Execute -> Capture -> Serialize -> Store -> Retrieve
-```
 
-Use cases:
+### `step`
 
-- snippet execution in Prism
-- CI/CD test trace capture
-- background analysis
+Sent for each emitted execution step.
 
-This is the simpler mode and the one implemented first.
+Current payload fields:
 
-### Streaming Mode
+- `type`
+- `sessionId`
+- `step`
+- `event`
+- `source`
+- `threadId`
 
-Events are pushed to consumers as they are captured.
-
-Flow:
-
-```
-Execute -> Capture -> Stream event -> Consumer receives immediately
-                   -> Store simultaneously
-```
-
-Use cases:
-
-- live debugging (see state as it executes)
-- real-time monitoring dashboards
-- progressive UI loading (start rendering before execution finishes)
-- event-driven pipelines (trigger alerts on specific events)
-
-## Event Stream Model
-
-### Stream Granularity
-
-The stream emits one message per UEF step:
+Example payload:
 
 ```json
 {
   "type": "step",
-  "sessionId": "sess_001",
-  "step": 12,
+  "sessionId": "sess_stream_ab12cd34",
+  "step": 3,
   "event": "VARIABLE_ASSIGNED",
-  "source": { "file": "Main.java", "line": 7 },
-  "delta": { ... },
-  "state": { ... }
+  "source": "Main.java:4",
+  "threadId": "main"
 }
 ```
 
-### Stream Lifecycle Messages
+### `complete`
 
-In addition to steps, the stream emits lifecycle messages:
+Sent once execution finishes successfully.
 
-```json
-{ "type": "session_started", "sessionId": "sess_001", "metadata": { ... } }
-{ "type": "step", ... }
-{ "type": "step", ... }
-{ "type": "checkpoint", "sessionId": "sess_001", "checkpoint": 5, "stepRange": [1, 50] }
-{ "type": "session_finished", "sessionId": "sess_001", "totalSteps": 47 }
-```
-
-### Error Messages
+Example payload:
 
 ```json
-{ "type": "error", "sessionId": "sess_001", "code": "COMPILE_FAILURE", "message": "..." }
-{ "type": "error", "sessionId": "sess_001", "code": "TIMEOUT", "message": "..." }
+{
+  "type": "session_finished",
+  "sessionId": "sess_stream_ab12cd34",
+  "totalSteps": 9
+}
 ```
 
-## Transport Protocols
+### `error`
 
-### WebSocket (Primary)
+Sent when async execution fails.
 
-For real-time bidirectional communication:
+## Producer Path
 
-```
-ws://nerva/v1/sessions/{sessionId}/stream
-```
+The producer path for sandbox streaming is:
 
-Consumer connects, receives events as they are captured.
+1. `StreamingController` receives the request
+2. execution is submitted to a virtual-thread executor
+3. the selected adapter executes with a `StepListener`
+4. `JdiExecutionEngine` emits each captured step from inside the event loop
+5. the controller converts step data into SSE events
 
-### Server-Sent Events (Fallback)
+This means the current streaming path is tied to launch-mode execution, not attach-mode observation.
 
-For simpler unidirectional streaming:
+## Filters and Throttling
 
-```
-GET /v1/sessions/{sessionId}/stream
-Accept: text/event-stream
-```
+The codebase includes an `EventFilter` model and per-session filter storage in `StreamingController`, but there is currently no public REST API to configure those filters dynamically.
 
-### Polling (Lowest Common Denominator)
+What exists today:
 
-For environments where WebSocket or SSE are not available:
+- internal filter support in the controller
+- default pass-through behavior
+- step tracking for throttling logic
 
-```
-GET /v1/sessions/{sessionId}/steps?after=12
-```
+What does not exist yet:
 
-Returns new steps since the specified step number.
+- a public subscribe API with filter payloads
+- watch subscriptions
+- stream replay or catch-up windows
 
 ## Backpressure and Buffering
 
-### Producer Side (Engine)
+Two different ideas exist in the repository:
 
-- engine captures events at execution speed
-- events are buffered in a bounded queue
-- if the queue fills, sampling kicks in (drop intermediate LINE_CHANGED events, keep METHOD_ENTERED/EXITED)
-- session metadata tracks actual vs delivered event counts
+### Active runtime stream path
 
-### Consumer Side (Client)
+The live SSE stream relies on:
 
-- consumers can specify desired event filter at subscription time
-- example: "only METHOD_ENTERED and EXCEPTION_THROWN events"
-- this reduces bandwidth for monitoring use cases
+- `SseEmitter`
+- controller-managed session maps
+- best-effort emitter sends
 
-## Stream Subscriptions
+### Scaling-oriented capture path
 
-### Subscribe to Active Session
+The source tree also contains `EventRingBuffer`, which is designed to decouple event receipt from heavier processing for attach / production workloads.
 
-```json
-{
-  "action": "subscribe",
-  "sessionId": "sess_001",
-  "filter": {
-    "events": ["METHOD_ENTERED", "METHOD_EXITED", "EXCEPTION_THROWN"],
-    "minStepInterval": 100
-  }
-}
-```
-
-### Subscribe to Future Sessions (Watch)
-
-```json
-{
-  "action": "watch",
-  "filter": {
-    "tags": ["production", "service-a"],
-    "correlationId": "req_*"
-  }
-}
-```
-
-This enables monitoring dashboards that automatically pick up new traces.
+That component is an important scaling primitive, but it is not the default mechanism used by the current runtime SSE endpoint.
 
 ## Relationship to Persistence
 
-Streaming and persistence are complementary:
+Streaming and persistence are related but not identical in the current implementation.
 
-- events are streamed to live consumers AND written to the trace store simultaneously
-- consumers that miss live events can replay from the persisted trace
-- the trace store is the source of truth; the stream is a real-time projection
+Current behavior:
 
-## What This Enables
+- steps are emitted live during execution
+- the completed trace is stored in `SessionStore`
+- `SessionStore` writes the final trace to TraciumDB
 
-- see execution as it happens (live debugging)
-- build monitoring dashboards that react to execution events
-- progressive loading in Prism (show steps as they arrive, not after completion)
-- event-driven automation (trigger alert when specific pattern detected)
-- CI/CD integration (stream test execution to trace store)
+So the stream is live, while the durable write occurs at session completion rather than incrementally per streamed step.
+
+## UI Relationship
+
+The embedded UI at `/` uses the same engine service and can consume streaming sessions from the same process that owns persistence and analysis endpoints.
+
+## Current Limitations
+
+- SSE only, no WebSocket API
+- only runtime sandbox sessions have a dedicated streaming endpoint today
+- no public filtering API yet
+- no replay / resume semantics on the stream endpoint
+- very short sessions may finish before some clients attach to the stream
+
+## Recommended Documentation Posture
+
+When describing streaming externally:
+
+- say "SSE live step streaming for runtime sessions"
+- do not claim WebSocket support
+- do not claim stream-time persistence of every step
+- treat `EventRingBuffer` as an available scaling component, not the default product path

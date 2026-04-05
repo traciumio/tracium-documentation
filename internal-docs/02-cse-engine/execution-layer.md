@@ -2,172 +2,175 @@
 
 ## Role
 
-The execution layer is the boundary between source code and runtime capture.
+The execution layer is the boundary between user input and runtime capture.
 
-Its job is to:
+In the current engine it is responsible for:
 
-- prepare source inputs
-- launch execution safely
-- attach observation mechanisms
-- stream raw runtime signals to the state engine
+- accepting execution requests
+- selecting an `ExecutionAdapter`
+- launching or attaching to JVMs
+- enforcing execution limits
+- producing captured steps and final traces
+- feeding streaming listeners during execution when requested
 
-## Adapter Model
+## Concrete Interfaces
 
-Each language uses a dedicated adapter that supports two execution modes.
+The current implementation uses the following core types:
 
-Example interface:
+- `ExecutionAdapter`
+- `RuntimeSessionRequest`
+- `AttachRequest`
+- `ForkRequest`
+- `ExecutionLimits`
+- `StepListener`
+- `EngineRuntimeService`
 
-```java
-public interface LanguageExecutionAdapter {
-    // Sandbox mode: engine launches and controls execution
-    ExecutionSession launch(ExecutionRequest request);
+`ExecutionAdapter` is the stable adapter boundary used by `engine-service` and reusable command-line tooling.
 
-    // Observation mode: engine attaches to running process
-    ExecutionSession attach(AttachRequest request);
+## Module Ownership
 
-    void stop(String sessionId);
-    AdapterCapabilities capabilities();
-}
-```
+- `engine-core` defines the requests, adapter contracts, limits, and trace models
+- `engine-java-jdi-adapter` implements the Java adapter
+- `engine-service` exposes launch, streaming, attach, fork, and analysis endpoints
+- `engine-agent` provides a standalone production-facing attach entrypoint
 
-The adapter is responsible for language-specific behavior, not the shared state model. Each adapter declares which modes it supports (launch, attach, or both).
+## Current Adapter Surface
 
-## Java-First Strategy
+The Java adapter currently supports:
 
-The first implementation should use `JDI` for Java execution capture.
+- `execute(RuntimeSessionRequest request)`
+- `execute(RuntimeSessionRequest request, String sessionId, StepListener listener)`
+- `forkExecute(ForkRequest request)`
+- `attach(AttachRequest request)`
 
-Why `JDI` first:
+This gives the repository one adapter with four practical operating modes:
 
-- mature debugger integration
-- direct access to stack frames and variables
-- good fit for truth-first execution modeling
-- supports both launch mode and attach mode natively
+- sandbox launch
+- sandbox launch with live step callbacks
+- real re-execution fork
+- attach / observed execution
 
-What `JDI` can support early:
+## Launch Mode Pipeline
 
-- method entry and exit
-- line stepping
-- local variable inspection
-- object reference inspection
-- exception events
+Sandbox execution currently works like this:
 
-### JDI Launch Mode (Sandbox)
+1. `RuntimeController` accepts a `RuntimeSessionRequest`
+2. `EngineRuntimeService` selects the adapter by language
+3. `JavaJdiAdapter` compiles the submitted code with `JavaCompiler`
+4. `JdiExecutionEngine` launches a JVM with JDI attached
+5. JDI events are captured and turned into normalized `CapturedStep` values
+6. The adapter assembles a `UefTrace`
+7. `SessionStore` persists the trace to TraciumDB
 
-Engine creates a new JVM process, attaches JDI, captures with full fidelity.
+## Attach Mode Pipeline
 
-### JDI Attach Mode (Production Recording)
+Observed execution currently works like this:
 
-Engine connects to a running JVM via `AttachingConnector` (socket or shared memory). Target JVM must be started with: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005`. Capture is selective (method boundaries, breakpoints) to minimize overhead. See [Production Recording](production-recording.md) for full details.
+1. `AttachController` or `TraciumAgent` builds an `AttachRequest`
+2. `JdiAttachEngine` connects via `AttachingConnector`
+3. Event requests are installed based on recording strategy
+4. `BudgetedStateCapture` materializes bounded state snapshots
+5. The adapter assembles an observed-mode `UefTrace`
+6. The trace is persisted to TraciumDB
 
-## Execution Pipeline
+## Fork / Re-Execution Pipeline
 
-### Sandbox Pipeline (Launch Mode)
+Real fork execution uses:
 
-1. Receive code or project execution request
-2. Prepare source files and dependencies
-3. Compile if required
-4. Launch target runtime in an instrumentable mode
-5. Subscribe to runtime events
-6. Stream events to state normalization AND to live consumers simultaneously
-7. Persist finalized trace to trace store
-8. Emit session completion metadata
+1. the original request context
+2. a `ForkRequest` describing the fork step and variable overrides
+3. `JdiForkEngine` to relaunch the program
+4. JDI variable injection at the target point
+5. trace capture of the new execution path
 
-### Observation Pipeline (Attach Mode)
+This is distinct from predictive forking in `TimelineFork`, which only models divergence over an existing trace.
 
-1. Receive attach request with target process details and recording strategy
-2. Connect to running process via language-specific attach mechanism
-3. Apply recording strategy (scope filters, fidelity level, breakpoints)
-4. Capture events selectively per configured strategy
-5. Stream events to state normalization AND to live consumers simultaneously
-6. Persist captured trace to trace store
-7. Detach cleanly from target process
+## Streaming Pipeline
 
-## Input Types
+When `StreamingController` is used:
 
-The execution layer should support multiple inputs over time:
+1. a session ID is created immediately
+2. the adapter executes asynchronously
+3. `JdiExecutionEngine` emits `UefStep` values to a `StepListener`
+4. the controller forwards those steps to an SSE emitter
+5. when execution completes, the full trace is stored in TraciumDB
 
-- single snippet
-- runnable file
-- selected project entrypoint
-- test case
+This means live delivery and final persistence are related but separate.
 
-Each request should declare:
+## Execution Limits
 
-- language
-- runtime version
-- entrypoint
-- input arguments
-- execution limits
+`ExecutionLimits` currently supports:
 
-## Session Controls
+- `timeoutMs`
+- `maxSteps`
+- `maxHeapMb`
+- `allowNetwork`
+- `allowFileWrite`
 
-Each execution session should support:
+Defaults are conservative and aimed at sandbox safety:
 
-- start
-- step
-- continue
-- pause
-- stop
-- timeout
+- 5000 ms timeout
+- 1000 max steps
+- 64 MB max heap
+- network disabled
+- file writes disabled
 
-Not all languages or runtimes will support every control mode equally at first, so capabilities must be explicit.
+## Sandbox Policy
 
-## Security and Sandboxing
+`SandboxPolicy` is applied to launched JVMs, not attached JVMs.
 
-Because arbitrary code execution is dangerous, the execution layer must be designed around isolation.
+Current launch-time protections include:
 
-Baseline requirements:
+- process timeout watchdog
+- `-Xmx` memory control
+- interpreter mode (`-Xint`) for more predictable stepping
+- disallowing network and file-write capabilities through policy-driven JVM options
 
-- bounded CPU and memory
-- restricted filesystem access
-- restricted network access
-- execution timeouts
-- session cleanup
+Attach mode does not sandbox the target JVM; it only constrains what Tracium captures.
 
-Recommended long-term strategy:
+## Recording Strategies and Fidelity
 
-- dedicated worker runtime or container per execution session
-- policy-driven capability matrix by language and input type
+Attach mode currently exposes four strategies:
 
-## Determinism
+| Strategy | Intended Use | Trace Fidelity | Effective Budget |
+| --- | --- | --- | --- |
+| `FULL_CAPTURE` | small or controlled workloads | `full` | `CaptureBudget.full()` |
+| `METHOD_BOUNDARY` | production-oriented observation | `sampled` | `CaptureBudget.production()` |
+| `BREAKPOINT` | targeted observation | `selective` | `CaptureBudget.production()` |
+| `EVENT_FILTER` | low-overhead monitoring | `minimal` | `CaptureBudget.minimal()` |
 
-Deterministic playback is important for meaningful visualization.
+## Enterprise-Scale Components in Source
 
-The execution layer should capture enough metadata to explain nondeterministic behavior when it occurs.
+The execution layer now contains several scaling-oriented components:
 
-Sources of nondeterminism include:
+- `CaptureBudget` and `BudgetedStateCapture` for bounded snapshots
+- `EventRingBuffer` for decoupling JDI receipt from heavier processing
+- `SamplingEngine` and `SamplingHeaderCodec` for request-level sampling and propagation
+- `CircuitBreaker` for automatic capture degradation
+- `TraciumAgent` for standalone capture
 
-- time
-- random values
-- concurrency
-- external I/O
+Current status:
 
-Initial recommendation:
+- capture budgets are actively used by attach mode
+- the standalone agent is active and usable
+- sampling, ring buffering, and circuit breaker are available in code but are not yet fully wired into the default `engine-service` capture loop
 
-- focus on single-threaded deterministic scenarios first
-- explicitly mark unsupported or partially supported cases
+## Diagnostics
 
-## Capture Fidelity Levels
-
-Not all recording contexts require the same detail level:
-
-- `full`: every step captured, complete heap snapshots (sandbox mode default)
-- `sampled`: periodic sampling, some steps skipped (production method-boundary)
-- `selective`: only specific methods or regions captured (production breakpoint)
-- `minimal`: entry/exit events only, no heap detail (production monitoring)
-
-Each trace carries its fidelity level in metadata so consumers understand capture completeness.
-
-## Errors and Diagnostics
-
-The execution layer must emit structured diagnostics for:
+The execution layer must surface structured failure states, including:
 
 - compile failures
-- runtime exceptions
-- unsupported language features
-- sandbox policy violations
-- session timeouts
-- attach failures (target unreachable, permissions)
-- capture fidelity warnings (events dropped due to backpressure)
+- launch failures
+- timeout termination
+- unsupported language selection
+- attach failures
+- capture warnings and diagnostics in traces
 
-Diagnostics should be first-class outputs, not only logs.
+Current controllers expose most of these through HTTP error responses or trace diagnostics.
+
+## Operational Caveats
+
+- Only Java is currently supported by a real adapter
+- attach mode is real code, but its operational hardening is still behind the sandbox path
+- fork re-execution relies on runtime step counting and variable injection and should be treated as advanced behavior
+- the source contains scaling primitives beyond what `engine-service` wires by default today

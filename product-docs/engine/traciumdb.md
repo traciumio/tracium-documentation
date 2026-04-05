@@ -1,86 +1,71 @@
 # TraciumDB
 
-TraciumDB is the engine's embedded storage — a file-based database purpose-built for execution traces. No PostgreSQL, no MongoDB, no external process.
+TraciumDB is the engine's built-in storage engine for execution traces.
 
-## How It Works
+You do not need PostgreSQL, MongoDB, Redis, or any other external database to use the engine.
 
-```
+## What It Stores
+
+TraciumDB stores:
+
+- trace documents
+- session metadata
+- variable/value search entries
+- fork relationships
+
+## Current File Layout
+
+```text
 data/traciumdb/
-├── traces/                  ← one JSON file per execution (immutable)
-│   ├── sess_abc123.trace
-│   └── sess_def456.trace
-├── index.db                 ← session metadata (JSONL)
-├── steps.idx                ← variable/value search index
-└── forks.db                 ← fork tree relationships
+  traces/
+    sess_xxx.trace
+  index.db
+  steps.idx
+  forks.db
 ```
 
-**Every file is human-readable.** Open any `.trace` file in VS Code and you'll see the full execution trace as formatted JSON.
+## What You Can Do With It
 
-## Why Not a Real Database?
+- browse stored sessions
+- search executions by variable and value
+- inspect fork relationships
+- get storage stats
+- persist traces across restarts
 
-| Need | PostgreSQL | TraciumDB |
-|------|-----------|-----------|
-| Store execution traces | JSONB column (generic) | Native UEF JSON files |
-| Search by variable value | JSON path queries (slow) | Inverted index (instant) |
-| Fork tree relationships | Relational JOINs | Native adjacency list |
-| Setup | Install + configure + run server | Nothing (just a directory) |
-| View data | psql / pgAdmin | VS Code / cat / browser UI |
-| Backup | pg_dump | cp -r |
+## How the Service Uses It
 
-## Viewing the Data
+`SessionStore` writes completed traces into TraciumDB and reads them back for:
 
-### 1. Engine Explorer UI
+- REST APIs
+- the embedded UI
+- time-machine workflows
+- diffing inputs
 
-Open `http://localhost:8080` → **TraciumDB** tab.
+## Current Guarantees
 
-- **Storage Stats** — session count, disk usage
-- **Browse Sessions** — list with metadata
-- **Search** — "which executions had x = -1?"
-- **Fork Tree** — parent/child lineage
-- **Delete** — remove sessions
+Today TraciumDB should be understood as:
 
-### 2. REST API
+- embedded
+- file-based
+- restart-safe
+- searchable
+- actively used by the engine service
 
-```bash
-curl http://localhost:8080/v1/db/stats
-curl http://localhost:8080/v1/db/sessions?limit=20
-curl "http://localhost:8080/v1/db/search?variable=x&value=5"
-curl http://localhost:8080/v1/db/forks/{sessionId}
-```
+## Advanced Storage Components
 
-### 3. Direct File Access
+The repository also contains:
 
-```bash
-ls data/traciumdb/traces/
-cat data/traciumdb/traces/sess_abc123.trace | python -m json.tool
-```
+- journal support
+- async write queue support
+- retention-policy support
 
-## Configuration
+These are important parts of the storage architecture, but they are not yet the default end-to-end service persistence path.
 
-```yaml
-tracium:
-  engine:
-    data-dir: ${DATA_DIR:./data/traciumdb}
-```
+## Ways to Access Data
 
-| Env Variable | Default | Description |
-|-------------|---------|-------------|
-| `DATA_DIR` | `./data/traciumdb` | Where all data is stored |
+You can access stored traces through:
 
-## Persistence Guarantees
-
-- **Traces** — atomic writes (write to `.tmp`, then rename). No half-written files.
-- **Indexes** — rebuilt from trace files on startup if corrupted.
-- **WAL** — each journal entry fsynced to disk before acknowledged.
-- **Survives restarts** — all data on disk, loaded into memory on startup.
-
-## Disk Usage
-
-| Trace Size | Steps | File Size |
-|-----------|-------|-----------|
-| Simple | 5-10 | 2-5 KB |
-| Medium | 50-100 | 20-50 KB |
-| Complex | 200-500 | 100-300 KB |
-| Large | 1000+ | 500 KB - 2 MB |
-
-100 traces ≈ 5-50 MB. Thousands of traces fit on any modern SSD.
+- the embedded UI
+- `/v1/db/...` REST endpoints
+- direct file access to the storage directory
+- Swagger UI for API exploration

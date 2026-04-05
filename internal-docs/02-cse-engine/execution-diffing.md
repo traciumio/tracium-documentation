@@ -2,181 +2,137 @@
 
 ## Purpose
 
-This document defines how Tracium compares execution traces, enabling regression detection, behavior verification, and execution versioning. Execution diffing is the "git diff for execution" -- it answers "what changed between these two runs?"
+Execution diffing answers a simple but high-value question:
 
-## Core Principle
+"What changed between these two runs?"
 
-> If execution is data, then two executions can be compared like two documents. The diff is the insight.
+In the current engine, diffing is implemented in `engine-core` and exposed by `DiffController`.
 
-## Comparison Types
+## Current Building Blocks
 
-### 1. Same Code, Different Runs
+- `AlignmentStrategy`
+- `DiffCategory`
+- `StepDiff`
+- `DiffResult`
+- `ExecutionDiff`
+- `DiffController`
 
-Compare two executions of the same code to detect nondeterminism or environmental differences.
+## Supported Inputs
 
-Use cases:
+The current service compares two stored traces identified by session ID.
 
-- "this test passed locally but failed in CI -- what differed in execution?"
-- "is this function deterministic?"
-- verify execution reproducibility
+Typical sources are:
 
-### 2. Different Code Versions, Same Input
+- two sandbox executions
+- a baseline execution and a real fork
+- two separate traces from different code or input versions
 
-Compare execution before and after a code change to understand behavioral impact.
+## Alignment Strategies
 
-Use cases:
+The current engine supports four alignment modes:
 
-- "my refactor should not change behavior -- did it?"
-- "what exactly changed in execution after this commit?"
-- regression detection: "this bug fix changed 3 execution paths"
+- `STEP_NUMBER`
+- `SOURCE_ANCHOR`
+- `METHOD_BOUNDARY`
+- `EVENT_SEQUENCE`
 
-### 3. Same Code, Different Inputs
+Use them as follows:
 
-Compare execution with different inputs to understand code behavior patterns.
+- `STEP_NUMBER` for deterministic, same-shape runs
+- `SOURCE_ANCHOR` when source location is the most stable anchor
+- `METHOD_BOUNDARY` for coarser but robust comparisons
+- `EVENT_SEQUENCE` for semantic pattern matching
 
-Use cases:
+## Difference Categories
 
-- "how does the sort behave with 10 elements vs 1000?"
-- "what path does the algorithm take for edge cases?"
-- educational: show how input affects execution
+The current diff categories are:
 
-### 4. Cross-Service Correlation Diff
+- `STEP_MATCHED`
+- `STEP_CHANGED`
+- `STEP_ADDED`
+- `STEP_REMOVED`
+- `PATH_DIVERGED`
+- `EXCEPTION_DIFF`
+- `LENGTH_DIFF`
 
-Compare the execution path of a request across different trace sessions.
+## Current REST API
 
-Use cases:
+The current endpoints are:
 
-- "why did this request take 3x longer than usual?"
-- "which service diverged from the expected call pattern?"
+- `POST /v1/comparisons`
+- `GET /v1/comparisons/{comparisonId}`
+- `GET /v1/comparisons/{comparisonId}/summary`
 
-## Diff Model
+There is no standalone `/differences` endpoint today.
 
-### Trace Alignment
+## Current Response Model
 
-Before diffing, traces must be aligned. Alignment strategies:
+`DiffResult` contains:
 
-- `step-number`: align by step index (simple, works for deterministic same-code runs)
-- `source-anchor`: align by source location (works across code versions)
-- `method-boundary`: align by method entry/exit sequence (coarse but robust)
-- `event-sequence`: align by event type pattern (semantic alignment)
+- baseline session ID
+- comparison session ID
+- alignment
+- summary
+- detailed step differences
 
-### Diff Output Structure
+The summary includes:
 
-```json
-{
-  "diffVersion": "0.1.0",
-  "baseline": {
-    "sessionId": "sess_001",
-    "label": "before-refactor"
-  },
-  "comparison": {
-    "sessionId": "sess_002",
-    "label": "after-refactor"
-  },
-  "alignment": "source-anchor",
-  "summary": {
-    "totalStepsBaseline": 47,
-    "totalStepsComparison": 52,
-    "matchedSteps": 40,
-    "addedSteps": 12,
-    "removedSteps": 7,
-    "changedSteps": 5
-  },
-  "differences": [
-    {
-      "type": "step_changed",
-      "baselineStep": 12,
-      "comparisonStep": 14,
-      "source": { "file": "Main.java", "line": 7 },
-      "changes": {
-        "variableDiffs": [
-          {
-            "name": "result",
-            "baseline": { "kind": "primitive", "type": "int", "value": 5 },
-            "comparison": { "kind": "primitive", "type": "int", "value": 8 }
-          }
-        ]
-      }
-    },
-    {
-      "type": "step_added",
-      "comparisonStep": 20,
-      "source": { "file": "Validator.java", "line": 15 },
-      "event": "METHOD_ENTERED",
-      "note": "New validation step not present in baseline"
-    }
-  ]
-}
-```
+- total baseline steps
+- total comparison steps
+- matched steps
+- changed steps
+- added steps
+- removed steps
+- path-diverged count
+- `behaviorallyEquivalent`
 
-### Diff Categories
+The engine also computes:
 
-- `step_matched`: same event, same state at aligned position
-- `step_changed`: same event location, different state values
-- `step_added`: exists in comparison but not in baseline
-- `step_removed`: exists in baseline but not in comparison
-- `path_diverged`: execution took a different branch
-- `exception_diff`: different exception behavior
+- significant differences
+- category counts
+- a lightweight regression fingerprint
 
-## Comparison API
+## Options
 
-### Create Comparison
+The current controller supports diff options such as:
 
-```
-POST /v1/comparisons
-{
-  "baseline": "sess_001",
-  "comparison": "sess_002",
-  "alignment": "source-anchor",
-  "options": {
-    "ignoreLineChanges": true,
-    "ignoreTimestamps": true,
-    "focusMethods": ["processOrder", "calculateTotal"]
-  }
-}
-```
+- ignore line changes
+- focus methods
+- ignore variables
 
-### Retrieve Comparison
+These options are translated into `ExecutionDiff.DiffOptions`.
 
-```
-GET /v1/comparisons/{comparisonId}
-GET /v1/comparisons/{comparisonId}/summary
-GET /v1/comparisons/{comparisonId}/differences?type=step_changed
-```
+## Storage Model
 
-## Execution Versioning
+Comparisons are currently stored in-memory inside `DiffController`.
 
-Traces can be tagged with version metadata to enable version-aware comparisons:
+That means:
 
-```json
-{
-  "tags": {
-    "codeVersion": "abc123",
-    "branch": "feature/validation",
-    "testSuite": "integration",
-    "buildNumber": "142"
-  }
-}
-```
+- comparison IDs are valid only for the running service instance
+- they are not yet persisted in TraciumDB
+- a restart clears comparison history
 
-This enables:
+## Best-Fit Use Cases
 
-- "compare execution of this test between commit A and commit B"
-- "show me how this function's execution changed across the last 5 releases"
-- regression dashboards: "which code changes caused execution differences?"
+The current diffing layer works best for:
 
-## Diff Visualization in Prism
+- regression investigation
+- comparing original vs real fork execution
+- validating that refactors preserved behavior
+- understanding how input changes alter step flow
 
-- side-by-side trace view (baseline left, comparison right)
-- aligned timeline with diff markers
-- highlighted added/removed/changed steps
-- variable value comparison at each aligned step
-- execution path overlay (where did execution diverge?)
+## Out of Scope for Current Docs
 
-## What This Enables
+Do not document the following as shipped product behavior:
 
-- automated regression detection in CI/CD ("this PR changed execution behavior")
-- performance comparison ("this version takes 30% more steps")
-- behavior verification ("refactor did not change functional behavior")
-- incident investigation ("what differs between the working and broken trace?")
-- educational comparison ("see how bubble sort vs merge sort execute differently")
+- cross-service distributed diffing
+- persisted comparison history
+- branch-wide comparison dashboards
+
+Those may be future uses, but they are not part of the current engine-service implementation.
+
+## Caveats
+
+- diff quality depends on alignment choice
+- some advanced scenarios have limited real-world hardening
+- comparison results are ephemeral service state today
